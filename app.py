@@ -4,20 +4,19 @@ from psycopg2.extras import DictCursor
 import json
 from flask import Flask, render_template, request, jsonify
 
-
 app = Flask(__name__)
 
-# データベースへの接続設定
+# --- データベース接続部分をPostgreSQL用に変更 ---
 def get_db_connection():
     conn_str = os.environ.get('DATABASE_URL')
     conn = psycopg2.connect(conn_str, cursor_factory=DictCursor)
     return conn
+# ----------------------------------------------
 
-# トップページ：エイリアン一覧と全要求データを読み込む
 @app.route('/')
 def index():
     conn = get_db_connection()
-    # 表示に必要なエイリアンの基本情報と、アイコン表示用のコードを取得するクエリ
+    cur = conn.cursor() # 作業員（カーソル）を呼び出す
     query = """
         SELECT
             a.id, a.name,
@@ -30,29 +29,32 @@ def index():
         LEFT JOIN attributes_a AS attr ON a.attribute = attr.id
         LEFT JOIN affiliations_b AS aff ON a.affiliation = aff.id
     """
-    aliens = conn.execute(query).fetchall()
+    cur.execute(query) # 作業員に命令する
+    aliens = cur.fetchall() # 結果を受け取る
+    cur.close() # 作業員を帰す
+    conn.close()
+    
+    # 全要求データを取得する部分も同様に修正
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM skill')
+    all_requirements_raw = cur.fetchall()
+    cur.close()
+    conn.close()
 
-    # 全エイリアンの要求データを取得
-    all_requirements_raw = conn.execute('SELECT * FROM skill').fetchall()
     all_requirements = {}
     for req in all_requirements_raw:
-        # キーを文字列に変換
         alien_id_str = str(req['id'])
         if alien_id_str not in all_requirements:
             all_requirements[alien_id_str] = []
-        # 辞書形式に変換して追加
         all_requirements[alien_id_str].append(dict(req))
     
-    conn.close()
-    
-    # 2種類のデータをHTMLに渡す
     return render_template(
         'index.html',
         aliens=aliens,
-        all_requirements_json=json.dumps(all_requirements) # JSON形式で渡す
+        all_requirements_json=json.dumps(all_requirements)
     )
 
-# 判定ロジック：選択された編成をチェックする
 @app.route('/check', methods=['POST'])
 def check_party():
     selected_ids = request.json.get('ids', [])
@@ -60,10 +62,12 @@ def check_party():
         return jsonify([])
 
     conn = get_db_connection()
-    
-    # 選択されたエイリアンたちの情報を取得
-    placeholders = ','.join('?' for _ in selected_ids)
-    party_members = conn.execute(f'SELECT * FROM alien WHERE id IN ({placeholders})', selected_ids).fetchall()
+    cur = conn.cursor() # 作業員を呼び出す
+
+    # PostgreSQLではプレースホルダが ? ではなく %s になります
+    placeholders_pg = ','.join(['%s'] * len(selected_ids))
+    cur.execute(f'SELECT * FROM alien WHERE id IN ({placeholders_pg})', selected_ids)
+    party_members = cur.fetchall()
 
     # パーティの構成を集計
     party_composition = {
@@ -79,7 +83,6 @@ def check_party():
                 type_code = member[type_col]
                 party_composition['e'][type_code] = party_composition['e'].get(type_code, 0) + 1
     
-    # 返却する詳細な結果リストを作成
     final_results = []
     for member in party_members:
         alien_id = member['id']
@@ -91,7 +94,8 @@ def check_party():
         }
 
         requirements_list = []
-        requirements = conn.execute('SELECT * FROM skill WHERE id = ? ORDER BY skill_number', (alien_id,)).fetchall()
+        cur.execute('SELECT * FROM skill WHERE id = %s ORDER BY skill_number', (alien_id,))
+        requirements = cur.fetchall()
         for req in requirements:
             cond_type = req['condition_type']
             cond_value = str(req['condition_value'])
@@ -119,10 +123,10 @@ def check_party():
             "id": alien_id, "name": member['name'],
             "base_info": base_info, "requirements": requirements_list
         })
-
+    
+    cur.close()
     conn.close()
     return jsonify(final_results)
 
-# サーバーを起動
 if __name__ == '__main__':
     app.run(debug=False)
