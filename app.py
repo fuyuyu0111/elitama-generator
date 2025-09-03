@@ -1,13 +1,16 @@
-import sqlite3
+import os
+import psycopg2
+from psycopg2.extras import DictCursor
 import json
 from flask import Flask, render_template, request, jsonify
+
 
 app = Flask(__name__)
 
 # データベースへの接続設定
 def get_db_connection():
-    conn = sqlite3.connect('alien_egg.db')
-    conn.row_factory = sqlite3.Row
+    conn_str = os.environ.get('DATABASE_URL')
+    conn = psycopg2.connect(conn_str, cursor_factory=DictCursor)
     return conn
 
 # トップページ：エイリアン一覧と全要求データを読み込む
@@ -122,4 +125,4 @@ def check_party():
 
 # サーバーを起動
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
