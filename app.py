@@ -52,4 +52,4 @@ def index():
 
 # ローカルテスト用の実行ブロック
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
