@@ -19,20 +19,32 @@
             flex-direction: column;
             align-items: center;
             width: 80px;
-            min-height: 160px; /* カード自体の高さを固定し、ガタつきを防止 */
+            min-height: 160px;
         }
-        .party-member-card .main-icon { width: 75px; height: 75px; cursor: pointer; border: 2px solid #007bff; border-radius: 8px; margin: 5px 0; order: 2; }
+        /* ★ キャラアイコンとタイプアイコンの間隔を詰めるため、上下マージンを5pxから2pxに縮小 */
+        .party-member-card .main-icon { width: 75px; height: 75px; cursor: pointer; border: 2px solid #007bff; border-radius: 8px; margin: 2px 0; order: 3; }
         
-        /* 基本情報コンテナをフレックスにして2段組みに対応 */
         .base-info-container {
             order: 1;
             display: flex;
             flex-direction: column;
-            min-height: 54px; /* 2段分の高さをあらかじめ確保 */
+            min-height: 42px;
+            /* ★ 基本情報アイコンとタイプアイコンの段の間隔を広げる */
+            gap: 4px;
         }
-        .icon-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 26px; } /* 1段分の高さを確保 */
-        .requirements-container { order: 3; }
-        .info-icon, .req-icon-wrapper img { width: 24px; height: 24px; }
+        .icon-container { display: flex; flex-wrap: wrap; gap: 0px; justify-content: center; min-height: 20px; }
+        .requirements-container { order: 4; }
+        .info-icon, .req-icon-wrapper img { width: 20px; height: 20px; }
+        
+        /* ★ 編成中キャラの名前用のスタイルを追加 */
+        .party-member-name {
+            order: 2; /* アイコンの上に表示 */
+            font-size: 7px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 2px;
+        }
+        
         .req-icon-wrapper { position: relative; }
         
         /* ○✗マークのスタイル */
@@ -47,7 +59,7 @@
         .alien-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
-            gap: 8px; /* アイコン間隔を狭くする */
+            gap: 8px;
             max-height: 50vh;
             overflow-y: auto;
         }
@@ -56,13 +68,22 @@
         .alien-card.selected { filter: contrast(60%); }
         .alien-card.selected::after { content: '編成中'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 0, 0, 0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; pointer-events: none; }
         .alien-card img { width: 100%; height: auto; }
+        /* ★ 一覧のキャラ名を表示するためのスタイルを追加 */
+        .alien-card .alien-name {
+            display: block; /* 非表示から表示に変更 */
+            font-size: 6.5px;
+            letter-spacing: -0.5px;
+            margin-top: 2px;
+            font-weight: bold;
+            line-height: 1.2;
+            color: #333;
+        }
 
         /* スマホ表示用のスタイル */
         @media (max-width: 768px) {
             .party-area { overflow-x: auto; }
             .party-display { justify-content: flex-start; flex-wrap: nowrap; padding-bottom: 10px; }
             .party-member-card { flex-shrink: 0; }
-            /* スマホで5列表示になるように調整 */
             .alien-grid {
                 grid-template-columns: repeat(5, 1fr);
                 gap: 5px;
@@ -75,7 +96,7 @@
         <div class="party-area">
             <h2>選択中の編成</h2>
             <div id="party-display" class="party-display">
-                </div>
+            </div>
         </div>
 
         <div class="selection-area">
@@ -91,8 +112,11 @@
                      data-info-d="{{ alien.attack_range }}"
                      data-info-e1="{{ alien.type_1 }}"
                      data-info-e2="{{ alien.type_2 }}"
-                     data-info-e3="{{ alien.type_3 }}">
+                     data-info-e3="{{ alien.type_3 }}"
+                     data-info-e4="{{ alien.type_4 }}"
+                     data-info-f="{{ alien.role }}">
                     <img src="/static/images/{{ alien.id }}.png" alt="{{ alien.name }}">
+                    <div class="alien-name">{{ alien.name }}</div>
                 </div>
                 {% endfor %}
             </div>
@@ -100,15 +124,12 @@
     </div>
 
     <script>
-        // Pythonから渡された全要求データをJavaScriptの変数として受け取る
         const ALL_REQUIREMENTS = JSON.parse('{{ all_requirements_json | safe }}');
-
-        const MAX_PARTY_SIZE = 6;
+        // const MAX_PARTY_SIZE = 6; // ★ 上限をなくすため、この行を削除またはコメントアウト
         const alienCards = document.querySelectorAll('.alien-card');
         const partyDisplay = document.getElementById('party-display');
-        let party = []; // 現在の編成を管理する配列
+        let party = [];
 
-        // エイリアン一覧のカードがクリックされた時の処理
         alienCards.forEach(card => {
             card.addEventListener('click', () => {
                 if (card.classList.contains('selected')) {
@@ -119,25 +140,23 @@
             });
         });
         
-        // 編成にエイリアンを追加する関数
         function addToParty(alienData) {
-            if (party.length >= MAX_PARTY_SIZE) {
-                alert(`編成は最大${MAX_PARTY_SIZE}体までです。`);
-                return;
-            }
+            // ★ 編成数の上限チェックを削除
+            // if (party.length >= MAX_PARTY_SIZE) {
+            //     alert(`編成は最大${MAX_PARTY_SIZE}体までです。`);
+            //     return;
+            // }
             party.push(alienData);
             updatePartyDisplay();
             checkPartyRealtime();
         }
 
-        // 編成からエイリアンを削除する関数
         function removeFromParty(alienId) {
             party = party.filter(alien => alien.id !== alienId);
             updatePartyDisplay();
             checkPartyRealtime();
         }
         
-        // 編成エリアの表示を更新する関数
         function updatePartyDisplay() {
             partyDisplay.innerHTML = '';
             
@@ -145,18 +164,18 @@
                 const memberCard = document.createElement('div');
                 memberCard.className = 'party-member-card';
                 
-                // 基本情報アイコンの生成
-                let baseInfoRow1HTML = ''; // 1段目 (a, b, c, d)
-                let baseInfoRow2HTML = ''; // 2段目 (e)
+                let baseInfoRow1HTML = '';
+                let baseInfoRow2HTML = '';
 
-                //if(alienData.infoA && alienData.infoA !== 'None') baseInfoRow1HTML += `<img class="info-icon" src="/static/icon/a${alienData.infoA}.png">`;
                 if(alienData.infoB && alienData.infoB !== 'None') baseInfoRow1HTML += `<img class="info-icon" src="/static/icon/b${alienData.infoB}.png">`;
                 if(alienData.infoC && alienData.infoC !== 'None') baseInfoRow1HTML += `<img class="info-icon" src="/static/icon/c${alienData.infoC}.png">`;
                 if(alienData.infoD && alienData.infoD !== 'None') baseInfoRow1HTML += `<img class="info-icon" src="/static/icon/d${alienData.infoD}.png">`;
+                if(alienData.infoF && alienData.infoF !== 'None') baseInfoRow1HTML += `<img class="info-icon" src="/static/icon/f${alienData.infoF}.png">`;
 
                 if(alienData.infoE1 && alienData.infoE1 !== 'None') baseInfoRow2HTML += `<img class="info-icon" src="/static/icon/e${alienData.infoE1}.png">`;
                 if(alienData.infoE2 && alienData.infoE2 !== 'None') baseInfoRow2HTML += `<img class="info-icon" src="/static/icon/e${alienData.infoE2}.png">`;
-                if(alienData.infoE3 && alienData.infoE3 !== 'None') baseInfoRow2HTML += `<img class.="info-icon" src="/static/icon/e${alienData.infoE3}.png">`;
+                if(alienData.infoE3 && alienData.infoE3 !== 'None') baseInfoRow2HTML += `<img class="info-icon" src="/static/icon/e${alienData.infoE3}.png">`;
+                if(alienData.infoE4 && alienData.infoE4 !== 'None') baseInfoRow2HTML += `<img class="info-icon" src="/static/icon/e${alienData.infoE4}.png">`;
                 
                 const baseInfoContainerHTML = `
                     <div class="base-info-container">
@@ -165,7 +184,6 @@
                     </div>
                 `;
 
-                // 要求アイコン (常に表示)
                 let requirementsHTML = '';
                 const alienReqs = ALL_REQUIREMENTS[alienData.id] || [];
                 alienReqs.forEach(req => {
@@ -178,9 +196,14 @@
 
                 const mainIconPath = `/static/images/${alienData.id}.png`;
                 const mainIconHTML = `<img src="${mainIconPath}" alt="${alienData.name}" class="main-icon">`;
+                
+                // ★ 編成中キャラの名前を表示するHTMLを追加
+                const nameHTML = `<div class="party-member-name">${alienData.name}</div>`;
 
+                // ★ 表示順を order プロパティで制御するため、innerHTMLの順序を修正
                 memberCard.innerHTML = `
                     ${baseInfoContainerHTML}
+                    ${nameHTML}
                     ${mainIconHTML}
                     <div class="requirements-container icon-container">${requirementsHTML}</div>
                 `;
@@ -198,30 +221,62 @@
             });
         }
 
-        // リアルタイムで判定を行う関数
-        async function checkPartyRealtime() {
-            const selectedIds = party.map(alien => alien.id);
-            
+        function checkPartyRealtime() {
+            // (この関数は変更なし)
             document.querySelectorAll('.req-icon-wrapper').forEach(wrapper => {
                 wrapper.classList.remove('visible', 'satisfied-true', 'satisfied-false');
             });
 
-            if (selectedIds.length < 2) {
+            if (party.length < 2) {
                 return;
             }
 
-            const response = await fetch('/check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedIds }),
-            });
-            const results = await response.json();
+            const party_composition = { 'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {} };
+            party.forEach(member => {
+                if(member.infoA && member.infoA !== 'None') party_composition.a[member.infoA] = (party_composition.a[member.infoA] || 0) + 1;
+                if(member.infoB && member.infoB !== 'None') party_composition.b[member.infoB] = (party_composition.b[member.infoB] || 0) + 1;
+                if(member.infoC && member.infoC !== 'None') party_composition.c[member.infoC] = (party_composition.c[member.infoC] || 0) + 1;
+                if(member.infoD && member.infoD !== 'None') party_composition.d[member.infoD] = (party_composition.d[member.infoD] || 0) + 1;
+                if(member.infoF && member.infoF !== 'None') party_composition.f[member.infoF] = (party_composition.f[member.infoF] || 0) + 1;
 
-            results.forEach(alienResult => {
-                alienResult.requirements.forEach(req => {
-                    const targetIcon = document.querySelector(`.req-icon-wrapper[data-alien-id='${alienResult.id}'][data-skill-num='${req.skill_number}'][data-cond-type='${req.condition_type}'][data-cond-val='${req.condition_value}']`);
+                for (let i = 1; i <= 4; i++) {
+                    const type = member[`infoE${i}`];
+                    if (type && type !== 'None') {
+                        party_composition.e[type] = (party_composition.e[type] || 0) + 1;
+                    }
+                }
+            });
+
+            party.forEach(member => {
+                const memberId = member.id;
+                const memberRequirements = ALL_REQUIREMENTS[memberId] || [];
+
+                memberRequirements.forEach(req => {
+                    const cond_type = req.condition_type;
+                    const cond_value = String(req.condition_value);
+                    const cond_count = req.condition_count;
+
+                    let actual_count = party_composition[cond_type]?.[cond_value] || 0;
+
+                    let is_self_condition = false;
+                    if (cond_type === 'a' && member.infoA === cond_value) is_self_condition = true;
+                    if (cond_type === 'b' && member.infoB === cond_value) is_self_condition = true;
+                    if (cond_type === 'c' && member.infoC === cond_value) is_self_condition = true;
+                    if (cond_type === 'd' && member.infoD === cond_value) is_self_condition = true;
+                    if (cond_type === 'f' && member.infoF === cond_value) is_self_condition = true;
+                    if (cond_type === 'e' && [member.infoE1, member.infoE2, member.infoE3, member.infoE4].includes(cond_value)) {
+                        is_self_condition = true;
+                    }
+                    
+                    if (is_self_condition) {
+                        actual_count -= 1;
+                    }
+
+                    const is_satisfied = actual_count >= cond_count;
+
+                    const targetIcon = document.querySelector(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${cond_type}'][data-cond-val='${cond_value}']`);
                     if (targetIcon) {
-                        targetIcon.classList.add('visible', req.is_satisfied ? 'satisfied-true' : 'satisfied-false');
+                        targetIcon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false');
                     }
                 });
             });
