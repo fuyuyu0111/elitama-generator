@@ -88,4 +88,4 @@ def get_alien_details(alien_id):
 
 # ローカルテスト用の実行ブロック (変更なし)
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
