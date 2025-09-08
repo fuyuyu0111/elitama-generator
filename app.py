@@ -2,28 +2,46 @@ import os
 import json
 import psycopg2
 from psycopg2.extras import DictCursor
-from flask import Flask, render_template
+# ★ jsonify をインポートに追加
+from flask import Flask, render_template, jsonify
 
 app = Flask(__name__)
 
 # データベース接続関数 (変更なし)
 def get_db_connection():
     conn_str = os.environ.get('DATABASE_URL')
-    conn = psycopg2.connect(conn_str, cursor_factory=DictCursor)
-    return conn
+    if not conn_str:
+        raise ValueError("環境変数 'DATABASE_URL' が設定されていません。")
+    return psycopg2.connect(conn_str, sslmode='require', cursor_factory=DictCursor)
 
 # メインページ表示
 @app.route('/')
 def index():
-    # 1. 全エイリアンのデータを取得
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM alien ORDER BY id")
+    
+    # --- ★★★ 修正点1: 初期読み込みデータを軽量化 ★★★ ---
+    # skill_text1, skill_text2, skill_text3 の読み込みを削除します。
+    # また、エイリアン一覧は降順で表示するように ORDER BY id DESC を追加します。
+    query = """
+        SELECT
+            id, name, attribute, affiliation, attack_area, attack_range, role,
+            type_1, type_2, type_3, type_4,
+            skill_no1 AS skill_no1_name,
+            skill_no2 AS skill_no2_name,
+            skill_no3 AS skill_no3_name
+        FROM
+            alien
+        ORDER BY id DESC
+    """
+    # --- ★★★ ここまでが修正点1 ★★★ ---
+
+    cur.execute(query)
     aliens = cur.fetchall()
     cur.close()
     conn.close()
     
-    # 2. 全要求（スキル）のデータを取得
+    # (以降の処理は変更なし)
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute('SELECT * FROM skill')
@@ -31,25 +49,43 @@ def index():
     cur.close()
     conn.close()
 
-    # 3. 要求データをJavaScriptで扱いやすい形式に整形
     all_requirements = {}
     for req in all_requirements_raw:
-        # DBから取得したidは数値なので、文字列に変換してキーにする
         alien_id_str = str(req['id'])
         if alien_id_str not in all_requirements:
             all_requirements[alien_id_str] = []
-        # 各要求を辞書としてリストに追加
         all_requirements[alien_id_str].append(dict(req))
     
-    # 4. 整形したデータをHTMLテンプレートに渡す
     return render_template(
         'index.html',
         aliens=aliens,
         all_requirements_json=json.dumps(all_requirements)
     )
 
-# ここに存在した @app.route('/check') ... def check_party(): の部分は完全に削除します。
+# --- ★★★ 修正点2: 詳細情報取得APIをここに追加 ★★★ ---
+@app.route('/api/alien_details/<int:alien_id>')
+def get_alien_details(alien_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # 特定のIDのエイリアンから、個性説明文だけを取得
+    cur.execute(
+        "SELECT skill_text1, skill_text2, skill_text3 FROM alien WHERE id = %s", 
+        (alien_id,)
+    )
+    
+    details = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if details:
+        return jsonify(dict(details))
+    else:
+        # 見つからなかった場合は空のオブジェクトを返す
+        return jsonify({})
+# --- ★★★ ここまでが修正点2 ★★★ ---
 
-# ローカルテスト用の実行ブロック
+
+# ローカルテスト用の実行ブロック (変更なし)
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
