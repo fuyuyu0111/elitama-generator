@@ -4,402 +4,496 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>エリたま編成ジェネレーター</title>
-<style>
-    :root {
-        --header-height: 4.739vh; /* 40px / 844px */
-        --dark-bg: #2a3a4a;
-        --light-text: #fff;
-        --accent-green: #00ffc8;
-        --border-color: #4a5a6a;
-        --slot-bg: #1a2a3a;
-    }
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background-color: var(--dark-bg);
-        color: var(--light-text);
-        margin: 0;
-        padding: 0.947vh; /* 8px */
-       font-size: 1.895vh;
-    }
-    * {
-        box-sizing: border-box;
-    }
-    .layout-wrapper {
-        max-width: 46.208vh; /* ★ 390px -> (390/844)*100vh */
-        height: calc(100vh - 1.895vh - var(--header-height) - 0.947vh); /* 100vh - top/bottom padding - header */
-        margin: 0 auto;
-        position: relative;
-        z-index: 1;
-        overflow: hidden;
-    }
-    .header {
-        height: var(--header-height);
-        background-color: var(--dark-bg);
-        border-bottom: 0.237vh solid var(--accent-green); /* 2px */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2em;
-        font-weight: bold;
-        margin-bottom: 0.947vh; /* 8px */
-    }
-    .main-container {
-        display: flex;
-        height: 100%;
-    }
-    .party-display-area {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 0.474vh; /* 4px */
-    }
-    .party-slot {
-        position: relative;
-        background-color: var(--slot-bg);
-        border: 0.118vh solid var(--border-color); /* 1px */
-        border-radius: 0.947vh; /* 8px */
-        display: grid;
-        padding: 0.947vh; /* 8px */
-        height: calc((100% - 1.895vh) / 5); /* (100% - 4つのgap) / 5 */
-        gap: 0.474vh 0.947vh; /* 4px 8px */
-        grid-template-columns: 9.478vh 13.033vh 1fr; /* 80px 110px */
-        grid-template-rows: auto 1fr;
-        grid-template-areas:
-            "name   name    name"
-            "icon   stats   skills";
-        overflow: visible;
-    }
-    .slot-name-area {
-        grid-area: name;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-weight: bold;
-        font-size: 1.1em;
-        border-bottom: 0.118vh solid var(--border-color); /* 1px */
-        padding-bottom: 0.474vh; /* 4px */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        min-height: 3.199vh; /* 27px */
-    }
-.slot-name-area .character-name {
-    display: flex; /* ★ display:flex を追加 */
-    align-items: center; /* ★ アイコンと文字の高さを中央揃え */
-    /* max-widthは不要になったので削除 */
-    overflow: hidden; /* ★ flexコンテナ自体にoverflowを指定 */
-}
-
-/* ★★★ 以下を新しく追加 ★★★ */
-
-
-/* 属性アイコンのスタイル */
-.attribute-icon {
-    height: 1.8vh; /* 文字の高さに合わせる */
-    width: auto;
-    margin-left: 0.5vh; /* 名前との間に余白を作る */
-    flex-shrink: 0; /* アイコンが縮まないようにする */
-}    .active-skill-display {
-        font-size: 0.5em;
-        position: absolute;
-        top: 0vh; /* 0px */
-        left: 25.355vh; /* 214px */
-        right: 0.947vh; /* 8px */
-    }
-    .active-skill-display .skill-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-    }
-    .slot-icon-area {
-        grid-area: icon;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .slot-stats-area {
-        grid-area: stats;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 0.947vh; /* 8px */
-    }
-    .slot-skills-area {
-        grid-area: skills;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-around;
-    }
-    .slot-icon {
-        width: 100%;
-        max-width: 8.293vh; /* 70px */
-        height: auto;
-        border: 0.237vh solid var(--accent-green); /* 2px */
-        border-radius: 0.947vh; /* 8px */
-        cursor: pointer;
-    }
-    .icon-placeholder {
-        width: 100%;
-        max-width: 8.293vh; /* 70px */
-        aspect-ratio: 1 / 1;
-        border: 0.237vh dashed var(--border-color); /* 2px */
-        border-radius: 0.947vh; /* 8px */
-    }
-    .stats-block { font-size: 0.9em; }
-    .stats-block-label { font-size: 0.8em; }
-    .stats-block-divider {
-        border-bottom: 0.118vh solid var(--border-color); /* 1px */
-        margin: 0.237vh 0; /* 2px */
-    }
-    .icon-container {
-        display: flex;
-        flex-wrap: wrap;
-        margin-top: 0.474vh; /* 4px */
-    }
-    .info-icon {
-        width: 2.369vh; /* 20px */
-        height: 2.369vh; /* 20px */
-        margin-right: -0.059vh; /* -0.5px */
-    }
-    .icon-placeholder-small {
-        width: 2.369vh; /* 20px */
-        height: 2.369vh; /* 20px */
-        margin-right: -0.059vh; /* -0.5px */
-    }
-    img.info-icon[src*="/f"] + img.info-icon[src*="/e"] {
-        margin-left: 0.592vh; /* 5px */
-    }
-    .skill-block {
-        font-size: 0.9em;
-        border-bottom: 0.118vh solid var(--border-color); /* 1px */
-        padding-bottom: 0.237vh; /* 2px */
-        /* overflow: hidden; */
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .skill-block:last-child { border-bottom: none; }
-    .skill-label {
-         font-size: 0.947vh; /* 基準: ~8px */
-        color: #9aabac;
-    }
-    .skill-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .skill-name {
-        font-weight: bold;
-        font-size: 1.184vh; /* 基準: 10px */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .skill-req-icons {
-        display: flex;
-        gap: 0.237vh; /* 2px */
-        flex-shrink: 0;
-        margin-left: 0.474vh; /* 4px */
-        margin-right: 0.474vh; /* 4px */
-    }
-    .req-icon-wrapper {
-    position: relative;
-    
-}
-    .req-icon-wrapper img {
-        width: 2.132vh; /* 18px */
-        height: 2.132vh; /* 18px */
-    }
-    .req-icon-wrapper::after {
-    content: '';
-    position: absolute;
-    bottom: -0.355vh; /* -3px */
-    right: -0.355vh; /* -3px */
-    width: 1.2vh; /* 11px */
-    height: 1.2vh; /* 11px */
-    border-radius: 50%;
-    background-color: grey;
-    color: white;
-    font-size: clamp(7px, 0.947vh, 9px); /* 基準: 8px */
-    font-weight: bold;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    border: 0.118vh solid white; /* 1px */
-}
-.req-count {
-    position: absolute;
-    top: -0.5vh;
-    right: -0.355vh;
-    z-index: 2;
-    
-    /* --- ここからスタイルを変更 --- */
-    color: white; /* 文字色を白に */
-    font-weight: bold;
-    font-size: 1.3vh; /* 少し大きくして視認性を上げる */
-    line-height: 1;
-
-    /* text-shadowで上下左右に黒い影を付けて縁取りを表現 */
-    text-shadow: 
-        -1px -1px 0 #000,  
-         1px -1px 0 #000,
-        -1px  1px 0 #000,
-         1px  1px 0 #000;
-}
-
-.req-icon-wrapper.visible::after {
-    display: flex;
-}
-
-.req-icon-wrapper.satisfied-true::after {
-    content: '◯';
-    background-color: #28a745;
-}
-
-.req-icon-wrapper.satisfied-false::after {
-    content: '✗';
-    background-color: #dc3545;
-}
-    .alien-drawer {
-        position: fixed;
-        top: 0; left: 0;
-        width: 95vw;
-        max-width: 360px;
-        height: 100%;
-        background-color: var(--dark-bg);
-        border-right: 2px solid var(--accent-green);
-        transform: translateX(-100%);
-        transition: transform 0.1s ease-in-out;
-        z-index: 1000;
-        display: flex;
-        flex-direction: column;
-    }
-    .alien-drawer.open {
-        transform: translateX(0);
-    }
-    .drawer-header {
-        padding: 16px;
-        font-size: 1.2em;
-        border-bottom: 1px solid var(--border-color);
-        text-align: center;
-    }
-    .alien-grid {
-        padding: 8px;
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 5px;
-        overflow-y: auto;
-        flex-grow: 1;
-    }
-    .alien-card {
-        text-align: center;
-        cursor: pointer;
-        position: relative;
-        min-width: 0;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .alien-card img {
-        width: 100%;
-        height: auto;
-        border: 2px solid transparent;
-        border-radius: 8px;
-    }
-    .alien-card:hover img {
-        border-color: var(--accent-green);
-    }
-    .alien-name {
-        display: block;
-        font-size: 10px;
-        font-weight: bold;
-        margin-top: 2px;
-        line-height: 1.1;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        width: 100%;
-    }
-    .alien-card.selected {
-        filter: contrast(60%);
-    }
-    .alien-card.selected::after {
-        content: '編成中';
-        position: absolute;
-        top: 40%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background-color: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: bold;
-        white-space: nowrap;
-        pointer-events: none;
-    }
-    .drawer-toggle {
-        position: fixed;
-        top: 50%;
-        left: 0;
-        transform: translateY(-50%);
-        width: 30px;
-        height: 60px;
-        background-color: var(--dark-bg);
-        color: var(--light-text);
-        border: 2px solid var(--accent-green);
-        border-left: none;
-        border-radius: 0 8px 8px 0;
-        cursor: pointer;
-        z-index: 1001;
-        transition: left 0.1s ease-in-out;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .alien-drawer.open + .drawer-toggle {
-        left: calc(95vw - 2px);
-    }
-    @media (min-width: 382px) {
-        .alien-drawer.open + .drawer-toggle {
-            left: 360px;
+    <style>
+        /* ==========================================================================
+           基本設定・変数定義
+           ========================================================================== */
+        :root {
+            --header-height: 4.739vh; /* 40px / 844px */
+            --dark-bg: #2a3a4a;
+            --light-text: #fff;
+            --accent-green: #00ffc8;
+            --border-color: #4a5a6a;
+            --slot-bg: #1a2a3a;
         }
-    }
 
-    /* ★★★ ここから個性の詳細表示用CSS ★★★ */
-    .slot-skills-area { overflow: hidden; position: relative; }
-    .skill-description {
-        display: none;
-        height: 100%;
-        font-size: clamp(10px, 1.303vh, 14px); /* 基準: ~11px */
-        padding: 0.118vh 0; /* 1px */
-        background-color: #00000030;
-        white-space: normal;
-        overflow-y: auto;
-        border-radius: 0.474vh; /* 4px */
-    }
-    .skills-area-detail-view .skill-item,
-    .skills-area-detail-view .skill-label { display: none; }
-    .skills-area-detail-view .skill-block:not(.is-active) { display: none; }
-    .skills-area-detail-view .skill-block.is-active { height: 100%; border-bottom: none; }
-    .skills-area-detail-view .skill-description { display: block; }
-    .skills-area-detail-view { cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    }
-    .skill-description::-webkit-scrollbar {
-        width: 6px;
-    }
-    .skill-description::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .skill-description::-webkit-scrollbar-thumb {
-        background: var(--border-color);
-        border-radius: 3px;
-    }
-    /* ★★★ ここまで ★★★ */
-</style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            margin: 0;
+            padding: 0.947vh; /* 8px */
+            font-size: 1.895vh;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        /* ==========================================================================
+           全体レイアウト
+           ========================================================================== */
+        .header {
+            height: var(--header-height);
+            background-color: var(--dark-bg);
+            border-bottom: 0.237vh solid var(--accent-green); /* 2px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 0.947vh; /* 8px */
+        }
+
+        .layout-wrapper {
+            max-width: 46.208vh; /* 390px */
+            height: calc(100vh - 1.895vh - var(--header-height) - 0.947vh);
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100%;
+        }
+
+        /* ==========================================================================
+           編成表示エリア (.party-display-area)
+           ========================================================================== */
+        .party-display-area {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.474vh; /* 4px */
+        }
+
+        /* --- 編成スロット --- */
+        .party-slot {
+            position: relative;
+            background-color: var(--slot-bg);
+            border: 0.118vh solid var(--border-color); /* 1px */
+            border-radius: 0.947vh; /* 8px */
+            display: grid;
+            padding: 0.947vh; /* 8px */
+            height: calc((100% - 1.895vh) / 5); /* (100% - 4つのgap) / 5 */
+            gap: 0.474vh 0.947vh; /* 4px 8px */
+            grid-template-columns: 9.478vh 13.033vh 1fr; /* 80px 110px */
+            grid-template-rows: auto 1fr;
+            grid-template-areas:
+                "name   name    name"
+                "icon   stats   skills";
+            overflow: visible;
+        }
+
+        /* --- スロットヘッダー (名前・属性アイコン) --- */
+        .slot-name-area {
+            grid-area: name;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            border-bottom: 0.118vh solid var(--border-color); /* 1px */
+            padding-bottom: 0.474vh; /* 4px */
+            min-height: 3.199vh; /* 27px */
+            overflow: hidden;
+        }
+        
+        .character-name {
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .attribute-icon {
+            height: 1.8vh;
+            width: auto;
+            margin-left: 0.5vh;
+            flex-shrink: 0;
+        }
+
+        /* --- スロット左側 (キャラアイコン) --- */
+        .slot-icon-area {
+            grid-area: icon;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slot-icon {
+            width: 100%;
+            max-width: 8.293vh; /* 70px */
+            height: auto;
+            border: 0.237vh solid var(--accent-green); /* 2px */
+            border-radius: 0.947vh; /* 8px */
+            cursor: pointer;
+        }
+
+        .icon-placeholder {
+            width: 100%;
+            max-width: 8.293vh; /* 70px */
+            aspect-ratio: 1 / 1;
+            border: 0.237vh dashed var(--border-color); /* 2px */
+            border-radius: 0.947vh; /* 8px */
+        }
+
+        /* --- スロット中央 (ステータス) --- */
+        .slot-stats-area {
+            grid-area: stats;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.947vh; /* 8px */
+        }
+
+        .stats-block {
+            font-size: 0.9em;
+        }
+
+        .stats-block-label {
+            font-size: 0.8em;
+        }
+
+        .stats-block-divider {
+            border-bottom: 0.118vh solid var(--border-color); /* 1px */
+            margin: 0.237vh 0; /* 2px */
+        }
+        
+        .icon-container {
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: 0.474vh; /* 4px */
+        }
+
+        .info-icon {
+            width: 2.369vh; /* 20px */
+            height: 2.369vh; /* 20px */
+            margin-right: -0.059vh; /* -0.5px */
+        }
+
+        .icon-placeholder-small {
+            width: 2.369vh; /* 20px */
+            height: 2.369vh; /* 20px */
+            margin-right: -0.059vh; /* -0.5px */
+        }
+
+        img.info-icon[src*="/f"]+img.info-icon[src*="/e"] {
+            margin-left: 0.592vh; /* 5px */
+        }
+        
+        /* --- スロット右側 (個性スキル) --- */
+        .slot-skills-area {
+            grid-area: skills;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            position: relative;
+            overflow: hidden; /* 個性説明表示のため */
+        }
+
+        .skill-block {
+            font-size: 0.9em;
+            border-bottom: 0.118vh solid var(--border-color); /* 1px */
+            padding-bottom: 0.237vh; /* 2px */
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            /* ★★★ 以下を4行追加 ★★★ */
+             min-height: 33.33%;
+             
+        }
+
+        .skill-block:last-child {
+            border-bottom: none;
+        }
+
+        .skill-label {
+            font-size: 0.947vh; /* ~8px */
+            color: #9aabac;
+        }
+
+        .skill-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            /* min-height: 2.132vh;  */
+        }
+        .skill-name {
+            font-weight: bold;
+            font-size: 1.184vh; /* 10px */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* --- 個性スキル (要求アイコン関連) --- */
+        .skill-req-icons {
+            display: flex;
+            gap: 0.237vh; /* 2px */
+            flex-shrink: 0;
+            margin-left: 0.474vh; /* 4px */
+            margin-right: 0.8vh; /* 見切れ防止用 */
+            position: relative;   /* ★ 位置調整の基準として追加 */
+            bottom: 0.5vh;        /* ★ この値で上に移動。数値を大きくすると、より上に動きます */
+        }
+        .active-skill-display .skill-req-icons {
+            /* ヘッダーの表示エリアに複製されたアイコンの上移動だけを解除する */
+            bottom: 0;
+        }        
+        .req-icon-wrapper {
+            position: relative;
+        }
+
+        .req-icon-wrapper img {
+            width: 2.137vh; /* 18px */
+            height: 2.137vh; /* 18px */
+        }
+
+        /* ◯✗ 判定アイコン */
+        .req-icon-wrapper::after {
+            content: '';
+            position: absolute;
+            bottom: -0.32vh; /* -3px */
+            right: -0.37vh; /* -3px */
+            width: 1.185vh; /* 11px */
+            height: 1.185vh; /* 11px */
+            border-radius: 50%;
+            background-color: grey;
+            color: white;
+            font-size: clamp(7px, 0.947vh, 9px); /* 基準: 8px */
+            font-weight: bold;
+            display: none;
+            /* ★★★ ここを元のFlexboxでの中央揃えに戻します ★★★ */
+            align-items: center;
+            justify-content: center;
+            /* ★★★ ここまで ★★★ */
+            border: 0.118vh solid white; /* 1px */
+            z-index: 1;
+        }
+
+        .req-icon-wrapper.visible::after {
+            display: flex;
+        }
+
+        .req-icon-wrapper.satisfied-true::after {
+            content: '◯';
+            background-color: #28a745;
+        }
+
+        .req-icon-wrapper.satisfied-false::after {
+            content: '✗';
+            background-color: #dc3545;
+        }
+        
+        /* 要求数カウント */
+        .req-count {
+            position: absolute;
+            top: -0.5vh;
+            right: -0.2vh;
+            z-index: 2;
+            color: white;
+            font-weight: bold;
+            font-size: 1.3vh;
+            line-height: 1;
+            text-shadow:
+                -1px -1px 0 #000,
+                 1px -1px 0 #000,
+                -1px  1px 0 #000,
+                 1px  1px 0 #000;
+        }
+
+        /* --- 個性スキル (詳細表示・スクロール) --- */
+        .skill-description {
+            display: none;
+            height: 100%;
+            font-size: clamp(10px, 1.303vh, 14px); /* ~11px */
+            padding: 0.118vh 0; /* 1px */
+            background-color: #00000030;
+            white-space: normal;
+            overflow-y: auto;
+            border-radius: 0.474vh; /* 4px */
+        }
+
+        .skills-area-detail-view .skill-item,
+        .skills-area-detail-view .skill-label {
+            display: none;
+        }
+
+        .skills-area-detail-view .skill-block:not(.is-active) {
+            display: none;
+        }
+
+        .skills-area-detail-view .skill-block.is-active {
+            height: 100%;
+            border-bottom: none;
+        }
+
+        .skills-area-detail-view .skill-description {
+            display: block;
+        }
+
+        .skills-area-detail-view {
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* 説明文のスクロールバー */
+        .skill-description::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .skill-description::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .skill-description::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        /* アクティブな個性名 (ヘッダー部に表示) */
+        .active-skill-display {
+            font-size: 0.5em;
+            position: absolute;
+            top: 0vh; /* 0px */
+            left: 25.355vh; /* 214px */
+            right: 0.947vh; /* 8px */
+        }
+
+        .active-skill-display .skill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* ==========================================================================
+           エイリアン一覧ドロワー
+           ========================================================================== */
+        .alien-drawer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 95vw;
+            max-width: 360px;
+            height: 100%;
+            background-color: var(--dark-bg);
+            border-right: 2px solid var(--accent-green);
+            transform: translateX(-100%);
+            transition: transform 0.1s ease-in-out;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .alien-drawer.open {
+            transform: translateX(0);
+        }
+
+        .drawer-header {
+            padding: 16px;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .alien-grid {
+            padding: 8px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .alien-card {
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+            min-width: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .alien-card img {
+            width: 100%;
+            height: auto;
+            border: 2px solid transparent;
+            border-radius: 8px;
+        }
+
+        .alien-card:hover img {
+            border-color: var(--accent-green);
+        }
+
+        .alien-name {
+            display: block;
+            font-size: 10px;
+            font-weight: bold;
+            margin-top: 2px;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+
+        .alien-card.selected {
+            filter: contrast(60%);
+        }
+
+        .alien-card.selected::after {
+            content: '編成中';
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* --- ドロワー開閉ボタン --- */
+        .drawer-toggle {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 60px;
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            border: 2px solid var(--accent-green);
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            z-index: 1001;
+            transition: left 0.1s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .alien-drawer.open+.drawer-toggle {
+            left: calc(95vw - 2px);
+        }
+
+        @media (min-width: 382px) {
+            .alien-drawer.open+.drawer-toggle {
+                left: 360px;
+            }
+        }
+    </style>
 </head>
+
 <body>
     <header class="header">エリジェネ</header>
-    
+
     <div class="layout-wrapper">
         <div class="main-container" id="main-container">
             <div class="party-display-area" id="party-display"></div>
@@ -410,26 +504,21 @@
         <div class="drawer-header">エイリアン一覧</div>
         <div class="alien-grid">
             {% for alien in aliens %}
-            <div class="alien-card"
-                data-id="{{ alien.id }}"
+            <div class="alien-card" 
+                data-id="{{ alien.id }}" 
                 data-name="{{ alien.name }}"
                 data-skill_no1_name="{{ alien.skill_no1_name }}"
                 data-skill_no2_name="{{ alien.skill_no2_name }}"
                 data-skill_no3_name="{{ alien.skill_no3_name }}"
-                
-                data-skill_text1="{{ alien.skill_text1 }}"
-                data-skill_text2="{{ alien.skill_text2 }}"
-                data-skill_text3="{{ alien.skill_text3 }}"
-                
-                data-info-a="{{ alien.attribute }}"
+                data-info-a="{{ alien.attribute }}" 
                 data-info-b="{{ alien.affiliation }}"
-                data-info-c="{{ alien.attack_area }}"
+                data-info-c="{{ alien.attack_area }}" 
                 data-info-d="{{ alien.attack_range }}"
-                data-info-f="{{ alien.role }}"
+                data-info-f="{{ alien.role }}" 
                 data-info-e1="{{ alien.type_1 }}"
-                data-info-e2="{{ alien.type_2 }}"
+                data-info-e2="{{ alien.type_2 }}" 
                 data-info-e3="{{ alien.type_3 }}"
-                data-info-e4="{{ alien.type_4 }}"
+                data-info-e4="{{ alien.type_4 }}" 
                 title="{{ alien.name }}">
                 <img src="/static/images/{{ alien.id }}.png" alt="{{ alien.name }}">
                 <div class="alien-name">{{ alien.name }}</div>
@@ -440,284 +529,324 @@
 
     <button class="drawer-toggle" id="drawer-toggle">▶</button>
 
-<script>
-    const ALL_REQUIREMENTS = JSON.parse('{{ all_requirements_json | safe }}');
-    const partyDisplay = document.getElementById('party-display');
-    const alienCards = document.querySelectorAll('.alien-card');
-    const drawer = document.getElementById('alien-drawer');
-    const toggleButton = document.getElementById('drawer-toggle');
-    const mainContainer = document.getElementById('main-container');
-    let party = [];
-    let skillTextsCache = {}; // ★ この行を追加
+    <script>
+        // ==========================================================================
+        //  JavaScript
+        // ==========================================================================
 
-function renderPartySlots() {
-    partyDisplay.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
-        const isOccupied = i < party.length;
-        const alienData = isOccupied ? party[i] : null;
-
-        // --- ★ ここから nameArea の生成ロジックを修正 ---
-        let attributeIconHtml = ''; // 属性アイコン用のHTMLを格納する変数
-        if (isOccupied && alienData.infoA && alienData.infoA !== 'None') {
-            attributeIconHtml = `<img class="attribute-icon" src="/static/icon/a${alienData.infoA}.png">`;
-        }
-
-        const nameArea = `
-            <div class="slot-name-area">
-                <div class="character-name">
-                    <span class="name-text">${isOccupied ? alienData.name : ''}</span>
-                    ${attributeIconHtml}
-                </div>
-                <div class="active-skill-display"></div>
-            </div>`;
-        // --- ★ ここまで修正 ---
-
-        const iconArea = `<div class="slot-icon-area">${isOccupied ? `<img src="/static/images/${alienData.id}.png" class="slot-icon" onclick="removeFromParty('${alienData.id}')">` : '<div class="icon-placeholder"></div>'}</div>`;
+        // --- 初期化・定数/変数定義 ---
+        const ALL_REQUIREMENTS = JSON.parse('{{ all_requirements_json | safe }}');
+        const partyDisplay = document.getElementById('party-display');
+        const alienCards = document.querySelectorAll('.alien-card');
+        const drawer = document.getElementById('alien-drawer');
+        const toggleButton = document.getElementById('drawer-toggle');
+        const mainContainer = document.getElementById('main-container');
         
-        let attackHtml = '';
-        if (isOccupied) {
-            if (alienData.infoD && alienData.infoD !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.infoD}.png">`;
-            if (alienData.infoC && alienData.infoC !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.infoC}.png">`;
-            if (alienData.infoB && alienData.infoB !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.infoB}.png">`;
-        }
-        
-        let typeHtml = '';
-        if (isOccupied) {
-            if (alienData.infoF && alienData.infoF !== 'None') {
-                typeHtml += `<img class="info-icon" src="/static/icon/f${alienData.infoF}.png">`;
-            } else {
-                typeHtml += `<div class="icon-placeholder-small"></div>`;
-            }
-            for (let j = 1; j <= 4; j++) {
-                const typeValue = alienData[`infoE${j}`];
-                if (typeValue && typeValue !== 'None') {
-                    typeHtml += `<img class="info-icon" src="/static/icon/e${typeValue}.png">`;
+        let party = []; // 現在の編成を保持する配列
+        let skillTextsCache = {}; // 個性説明文をキャッシュするオブジェクト
+
+        // --------------------------------------------------------------------------
+        //  データ管理・状態操作
+        // --------------------------------------------------------------------------
+
+        /**
+         * 編成にエイリアンを追加する。
+         * 個性説明文がキャッシュになければ、APIから非同期で取得する。
+         * @param {DOMStringMap} alienCardDataSet - クリックされたエイリアンカードのdataset
+         */
+        async function addToParty(alienCardDataSet) {
+            if (party.length >= 5) return;
+
+            const isAlreadyInParty = party.some(member => member.id === alienCardDataSet.id);
+            if (isAlreadyInParty) return;
+
+            party.push(alienCardDataSet);
+            renderPartySlots(); // まず画面に表示
+
+            // 裏側で個性説明文を取得
+            const alienId = alienCardDataSet.id;
+            if (!skillTextsCache[alienId]) {
+                try {
+                    const response = await fetch(`/api/alien_details/${alienId}`);
+                    if (response.ok) {
+                        const details = await response.json();
+                        skillTextsCache[alienId] = details; // 取得データをキャッシュに保存
+                        renderPartySlots(); // データ取得後に再描画
+                    }
+                } catch (error) {
+                    console.error('Error fetching skill texts:', error);
                 }
             }
         }
-        
-        const statsArea = `
-            <div class="slot-stats-area">
-                <div class="stats-block">
-                    <div class="stats-block-label">こうげき/所属</div><div class="stats-block-divider"></div>
-                    <div class="icon-container">${attackHtml}</div>
-                </div>
-                <div class="stats-block">
-                    <div class="stats-block-label">タイプ</div><div class="stats-block-divider"></div>
-                    <div class="icon-container">${typeHtml}</div>
-                </div>
-            </div>`;
 
-        let skillsAreaContent = '';
-        const alienReqs = isOccupied ? (ALL_REQUIREMENTS[alienData.id] || []) : [];
-        for (let j = 1; j <= 3; j++) {
-            const skillName = isOccupied ? (alienData[`skill_no${j}_name`] || '(個性なし)') : '';
-let skillText = '';
-if (isOccupied) {
-    // まずキャッシュから詳細情報を探す
-    const cachedDetails = skillTextsCache[alienData.id];
-    if (cachedDetails) {
-        // キャッシュにあれば、そこから説明文を取得
-        skillText = cachedDetails[`skill_text${j}`] || '説明文がありません。';
-    } else {
-        // なければ「読み込み中...」と表示
-        skillText = '読み込み中...';
-    }
-}            let reqIconsHtml = '';
-            if (isOccupied) {
-                alienReqs.filter(req => req.skill_number == j).forEach(req => {
-                    const iconFile = `${req.condition_type}${req.condition_value}.png`;
-                    let countHtml = '';
-                    if (req.condition_count >= 2) {
-                        countHtml = `<span class="req-count">${req.condition_count}</span>`;
-                    }
-                    reqIconsHtml += `
-                        <div class="req-icon-wrapper" 
-                             data-alien-id="${alienData.id}" 
-                             data-skill-num="${j}" 
-                             data-cond-type="${req.condition_type}" 
-                             data-cond-val="${req.condition_value}">
-                            <img src="/static/icon/${iconFile}">
-                            ${countHtml}
-                        </div>`;
-                });
-            }
-            skillsAreaContent += `
-                <div class="skill-block">
-                    <div class="skill-label">個性${j}</div>
-                    <div class="skill-item">
-                        <div class="skill-name">${skillName}</div>
-                        <div class="skill-req-icons">${reqIconsHtml}</div>
-                    </div>
-                    <div class="skill-description">${skillText.replace(/\n/g, '<br>')}</div>
-                </div>`;
+        /**
+         * 編成からエイリアンを削除する。
+         * @param {string} alienId - 削除するエイリアンのID
+         */
+        function removeFromParty(alienId) {
+            party = party.filter(alien => alien.id !== alienId);
+            renderPartySlots();
         }
-        const skillsArea = `<div class="slot-skills-area">${skillsAreaContent}</div>`;
-        
-        const slot = document.createElement('div');
-        slot.className = 'party-slot';
-        
-        slot.innerHTML = nameArea + iconArea + statsArea + skillsArea;
-        partyDisplay.appendChild(slot);
-    }
-    updateSelectedStatusInList();
-    checkPartyRealtime();
-}    
-    // ★★★ 修正点1: 重複チェックを追加 ★★★
-    async function addToParty(alienCardDataSet) { // ★ async を追加
-    if (party.length >= 5) return;
-    
-    const isAlreadyInParty = party.some(member => member.id === alienCardDataSet.id);
-    if (isAlreadyInParty) return;
 
-    party.push(alienCardDataSet);
-    renderPartySlots(); // まず画面に表示する
+        // --------------------------------------------------------------------------
+        //  DOM操作・表示更新
+        // --------------------------------------------------------------------------
 
-    // ★ ここから追加：裏側で個性説明文を取得する処理
-    const alienId = alienCardDataSet.id;
-    if (!skillTextsCache[alienId]) { // まだキャッシュになければ
-        try {
-            const response = await fetch(`/api/alien_details/${alienId}`);
-            if (response.ok) {
-                const details = await response.json();
-                skillTextsCache[alienId] = details; // 取得したデータをキャッシュに保存
-                renderPartySlots(); // データ取得後、再度画面を更新して「読み込み中...」を消す
-            }
-        } catch (error) {
-            console.error('Error fetching skill texts:', error);
-        }
-    }
-}
+        /**
+         * 現在の編成情報（party配列）を元に、5つのスロットのHTMLを生成・表示する。
+         */
+        function renderPartySlots() {
+            partyDisplay.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const isOccupied = i < party.length;
+                const alienData = isOccupied ? party[i] : null;
 
-    // ★★★ 修正点2: 欠落していた関数を復活 ★★★
-    function removeFromParty(alienId) {
-        party = party.filter(alien => alien.id !== alienId);
-        renderPartySlots();
-    }
-
-    // ★★★ 修正点3: 欠落していた関数を復活 ★★★
-    function updateSelectedStatusInList() {
-        const partyIds = new Set(party.map(p => p.id));
-        alienCards.forEach(card => {
-            card.classList.toggle('selected', partyIds.has(card.dataset.id));
-        });
-    }
-
-    function checkPartyRealtime() {
-        document.querySelectorAll('.req-icon-wrapper').forEach(wrapper => {
-            wrapper.classList.remove('visible', 'satisfied-true', 'satisfied-false');
-        });
-        if (party.length < 1) { return; }
-        const party_composition = { 'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {} };
-        party.forEach(member => {
-            if(member.infoA && member.infoA !== 'None') party_composition.a[member.infoA] = (party_composition.a[member.infoA] || 0) + 1;
-            if(member.infoB && member.infoB !== 'None') party_composition.b[member.infoB] = (party_composition.b[member.infoB] || 0) + 1;
-            if(member.infoC && member.infoC !== 'None') party_composition.c[member.infoC] = (party_composition.c[member.infoC] || 0) + 1;
-            if(member.infoD && member.infoD !== 'None') party_composition.d[member.infoD] = (party_composition.d[member.infoD] || 0) + 1;
-            if(member.infoF && member.infoF !== 'None') party_composition.f[member.infoF] = (party_composition.f[member.infoF] || 0) + 1;
-            for (let i = 1; i <= 4; i++) {
-                const type = member[`infoE${i}`];
-                if (type && type !== 'None') party_composition.e[type] = (party_composition.e[type] || 0) + 1;
-            }
-        });
-        party.forEach(member => {
-            const memberId = member.id;
-            const memberRequirements = ALL_REQUIREMENTS[memberId] || [];
-            memberRequirements.forEach(req => {
-                const cond_type = req.condition_type;
-                const cond_value = String(req.condition_value);
-                const cond_count = req.condition_count;
-                let actual_count = party_composition[cond_type]?.[cond_value] || 0;
-                let is_self_condition = false;
-                if (cond_type === 'a' && member.infoA === cond_value && member.infoA !== 'None') is_self_condition = true;
-                if (cond_type === 'b' && member.infoB === cond_value && member.infoB !== 'None') is_self_condition = true;
-                if (cond_type === 'c' && member.infoC === cond_value && member.infoC !== 'None') is_self_condition = true;
-                if (cond_type === 'd' && member.infoD === cond_value && member.infoD !== 'None') is_self_condition = true;
-                if (cond_type === 'f' && member.infoF === cond_value && member.infoF !== 'None') is_self_condition = true;
-                if (cond_type === 'e') {
-                    const types = [member.infoE1, member.infoE2, member.infoE3, member.infoE4];
-                    if (types.includes(cond_value) && cond_value !== 'None') {
-                        is_self_condition = true;
-                    }
+                // --- 名前エリアのHTML生成 ---
+                let attributeIconHtml = '';
+                if (isOccupied && alienData.infoA && alienData.infoA !== 'None') {
+                    attributeIconHtml = `<img class="attribute-icon" src="/static/icon/a${alienData.infoA}.png">`;
                 }
-                if (is_self_condition) { actual_count -= 1; }
-                const is_satisfied = actual_count >= cond_count;
+                const nameArea = `
+                    <div class="slot-name-area">
+                        <div class="character-name">
+                            <span class="name-text">${isOccupied ? alienData.name : ''}</span>
+                            ${attributeIconHtml}
+                        </div>
+                        <div class="active-skill-display"></div>
+                    </div>`;
+
+                // --- アイコンエリアのHTML生成 ---
+                const iconArea = `<div class="slot-icon-area">${isOccupied ? `<img src="/static/images/${alienData.id}.png" class="slot-icon" onclick="removeFromParty('${alienData.id}')">` : '<div class="icon-placeholder"></div>'}</div>`;
                 
-                const targetIcons = document.querySelectorAll(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${req.condition_type}'][data-cond-val='${req.condition_value}']`);
-                targetIcons.forEach(icon => {
-                    icon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false');
+                // --- ステータスエリアのHTML生成 ---
+                let attackHtml = '';
+                if (isOccupied) {
+                    if (alienData.infoD && alienData.infoD !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.infoD}.png">`;
+                    if (alienData.infoC && alienData.infoC !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.infoC}.png">`;
+                    if (alienData.infoB && alienData.infoB !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.infoB}.png">`;
+                }
+                let typeHtml = '';
+                if (isOccupied) {
+                    if (alienData.infoF && alienData.infoF !== 'None') {
+                        typeHtml += `<img class="info-icon" src="/static/icon/f${alienData.infoF}.png">`;
+                    } else {
+                        typeHtml += `<div class="icon-placeholder-small"></div>`;
+                    }
+                    for (let j = 1; j <= 4; j++) {
+                        const typeValue = alienData[`infoE${j}`];
+                        if (typeValue && typeValue !== 'None') {
+                            typeHtml += `<img class="info-icon" src="/static/icon/e${typeValue}.png">`;
+                        }
+                    }
+                }
+                const statsArea = `
+                    <div class="slot-stats-area">
+                        <div class="stats-block">
+                            <div class="stats-block-label">こうげき/所属</div><div class="stats-block-divider"></div>
+                            <div class="icon-container">${attackHtml}</div>
+                        </div>
+                        <div class="stats-block">
+                            <div class="stats-block-label">タイプ</div><div class="stats-block-divider"></div>
+                            <div class="icon-container">${typeHtml}</div>
+                        </div>
+                    </div>`;
+
+                // --- スキルエリアのHTML生成 ---
+                let skillsAreaContent = '';
+                const alienReqs = isOccupied ? (ALL_REQUIREMENTS[alienData.id] || []) : [];
+                for (let j = 1; j <= 3; j++) {
+                    const skillName = isOccupied ? (alienData[`skill_no${j}_name`] || '(個性なし)') : '';
+                    
+                    let skillText = '';
+                    if (isOccupied) {
+                        const cachedDetails = skillTextsCache[alienData.id];
+                        if (cachedDetails) {
+                            skillText = cachedDetails[`skill_text${j}`] || '説明文がありません。';
+                        } else {
+                            skillText = '読み込み中...';
+                        }
+                    }
+                    
+                    let reqIconsHtml = '';
+                    if (isOccupied) {
+                        alienReqs.filter(req => req.skill_number == j).forEach(req => {
+                            const iconFile = `${req.condition_type}${req.condition_value}.png`;
+                            let countHtml = '';
+                            if (req.condition_count >= 2) {
+                                countHtml = `<span class="req-count">${req.condition_count}</span>`;
+                            }
+                            reqIconsHtml += `
+                                <div class="req-icon-wrapper" 
+                                    data-alien-id="${alienData.id}" 
+                                    data-skill-num="${j}" 
+                                    data-cond-type="${req.condition_type}" 
+                                    data-cond-val="${req.condition_value}">
+                                    <img src="/static/icon/${iconFile}">
+                                    ${countHtml}
+                                </div>`;
+                        });
+                    }
+                    skillsAreaContent += `
+                        <div class="skill-block">
+                            <div class="skill-label">個性${j}</div>
+                            <div class="skill-item">
+                                <div class="skill-name">${skillName}</div>
+                                <div class="skill-req-icons">${reqIconsHtml}</div>
+                            </div>
+                            <div class="skill-description">${skillText.replace(/\n/g, '<br>')}</div>
+                        </div>`;
+                }
+                const skillsArea = `<div class="slot-skills-area">${skillsAreaContent}</div>`;
+                
+                // --- 全エリアを結合してスロットを生成 ---
+                const slot = document.createElement('div');
+                slot.className = 'party-slot';
+                slot.innerHTML = nameArea + iconArea + statsArea + skillsArea;
+                partyDisplay.appendChild(slot);
+            }
+            updateSelectedStatusInList();
+            checkPartyRealtime();
+        }
+        
+        /**
+         * ドロワー内のエイリアン一覧で、編成中のキャラに「選択中」のスタイルを適用する。
+         */
+        function updateSelectedStatusInList() {
+            const partyIds = new Set(party.map(p => p.id));
+            alienCards.forEach(card => {
+                card.classList.toggle('selected', partyIds.has(card.dataset.id));
+            });
+        }
+        
+        // --------------------------------------------------------------------------
+        //  要求判定ロジック
+        // --------------------------------------------------------------------------
+
+        /**
+         * 現在の編成を元に、各個性の発動条件を満たしているかリアルタイムで判定し、◯✗を表示する。
+         */
+        function checkPartyRealtime() {
+            document.querySelectorAll('.req-icon-wrapper').forEach(wrapper => {
+                wrapper.classList.remove('visible', 'satisfied-true', 'satisfied-false');
+            });
+
+            if (party.length < 1) return;
+
+            const party_composition = { 'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {} };
+            party.forEach(member => {
+                if(member.infoA && member.infoA !== 'None') party_composition.a[member.infoA] = (party_composition.a[member.infoA] || 0) + 1;
+                if(member.infoB && member.infoB !== 'None') party_composition.b[member.infoB] = (party_composition.b[member.infoB] || 0) + 1;
+                if(member.infoC && member.infoC !== 'None') party_composition.c[member.infoC] = (party_composition.c[member.infoC] || 0) + 1;
+                if(member.infoD && member.infoD !== 'None') party_composition.d[member.infoD] = (party_composition.d[member.infoD] || 0) + 1;
+                if(member.infoF && member.infoF !== 'None') party_composition.f[member.infoF] = (party_composition.f[member.infoF] || 0) + 1;
+                for (let i = 1; i <= 4; i++) {
+                    const type = member[`infoE${i}`];
+                    if (type && type !== 'None') party_composition.e[type] = (party_composition.e[type] || 0) + 1;
+                }
+            });
+
+            party.forEach(member => {
+                const memberId = member.id;
+                const memberRequirements = ALL_REQUIREMENTS[memberId] || [];
+                memberRequirements.forEach(req => {
+                    const cond_type = req.condition_type;
+                    const cond_value = String(req.condition_value);
+                    const cond_count = req.condition_count;
+                    
+                    let actual_count = party_composition[cond_type]?.[cond_value] || 0;
+                    
+                    let is_self_condition = false;
+                    if (cond_type === 'a' && member.infoA === cond_value && member.infoA !== 'None') is_self_condition = true;
+                    if (cond_type === 'b' && member.infoB === cond_value && member.infoB !== 'None') is_self_condition = true;
+                    if (cond_type === 'c' && member.infoC === cond_value && member.infoC !== 'None') is_self_condition = true;
+                    if (cond_type === 'd' && member.infoD === cond_value && member.infoD !== 'None') is_self_condition = true;
+                    if (cond_type === 'f' && member.infoF === cond_value && member.infoF !== 'None') is_self_condition = true;
+                    if (cond_type === 'e') {
+                        const types = [member.infoE1, member.infoE2, member.infoE3, member.infoE4];
+                        if (types.includes(cond_value) && cond_value !== 'None') {
+                            is_self_condition = true;
+                        }
+                    }
+                    
+                    if (is_self_condition) {
+                        actual_count -= 1;
+                    }
+                    
+                    const is_satisfied = actual_count >= cond_count;
+                    
+                    const targetIcons = document.querySelectorAll(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${cond_type}'][data-cond-val='${cond_value}']`);
+                    targetIcons.forEach(icon => {
+                        icon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false');
+                    });
                 });
             });
-        });
-    }
-    
-   
-    partyDisplay.addEventListener('click', function(event) {
-    const skillBlock = event.target.closest('.skill-block');
-    const skillsArea = event.target.closest('.slot-skills-area');
-
-    if (skillBlock) {
-        // ★ 修正: 個性クリック時の処理をここにまとめる
-        const parentArea = skillBlock.parentElement;
-        const partySlot = skillBlock.closest('.party-slot');
-        const displayArea = partySlot.querySelector('.active-skill-display');
-        const isActive = skillBlock.classList.contains('is-active');
-
-        // いったん全てリセット
-        parentArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active'));
-        parentArea.classList.remove('skills-area-detail-view');
-        if(displayArea) displayArea.innerHTML = ''; // 表示エリアをクリア
-
-        // クリックしたものがアクティブでなければ、詳細表示モードにする
-        if (!isActive) {
-            parentArea.classList.add('skills-area-detail-view');
-            skillBlock.classList.add('is-active');
-            
-            // ★ 修正: ラベルと名前/アイコンの両方のHTMLを取得
-            const skillLabelHtml = skillBlock.querySelector('.skill-label').outerHTML;
-            const skillItemHtml = skillBlock.querySelector('.skill-item').outerHTML;
-            
-            // ★ 修正: 取得したHTMLを結合して表示エリアに挿入
-            if(displayArea) displayArea.innerHTML = skillLabelHtml + skillItemHtml;
         }
-
-    } else if (skillsArea && skillsArea.classList.contains('skills-area-detail-view')) {
-        // ★ 修正: 説明文エリアクリック時に表示エリアをクリアする
-        const partySlot = skillsArea.closest('.party-slot');
-        const displayArea = partySlot.querySelector('.active-skill-display');
         
-        skillsArea.classList.remove('skills-area-detail-view');
-        skillsArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active'));
-        if(displayArea) displayArea.innerHTML = ''; // 表示エリアをクリア
-    }
-});
+        // --------------------------------------------------------------------------
+        //  イベントリスナー設定
+        // --------------------------------------------------------------------------
+        
+        // 個性説明の詳細表示/非表示を切り替える
+        partyDisplay.addEventListener('click', function(event) {
+            const skillBlock = event.target.closest('.skill-block');
+            const skillsArea = event.target.closest('.slot-skills-area');
 
-    toggleButton.addEventListener('click', () => {
-        drawer.classList.toggle('open');
-        toggleButton.textContent = drawer.classList.contains('open') ? '◀' : '▶';
-    });
+            if (skillBlock) {
+                const parentArea = skillBlock.parentElement;
+                const partySlot = skillBlock.closest('.party-slot');
+                const displayArea = partySlot.querySelector('.active-skill-display');
+                const isActive = skillBlock.classList.contains('is-active');
 
-    mainContainer.addEventListener('click', () => {
-        if (drawer.classList.contains('open')) {
-            drawer.classList.remove('open');
-            toggleButton.textContent = '▶';
-        }
-    });
+                parentArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active'));
+                parentArea.classList.remove('skills-area-detail-view');
+                if (displayArea) displayArea.innerHTML = '';
 
-    // alienCardsのイベントリスナーは変更なし
-    alienCards.forEach(card => {
-        card.addEventListener('click', (event) => {
-            event.stopPropagation();
-            if (card.classList.contains('selected')) {
-                removeFromParty(card.dataset.id);
-            } else {
-                addToParty(card.dataset);
+                if (!isActive) {
+                    parentArea.classList.add('skills-area-detail-view');
+                    skillBlock.classList.add('is-active');
+                    
+                    const skillLabelHtml = skillBlock.querySelector('.skill-label').outerHTML;
+                    const skillItemHtml = skillBlock.querySelector('.skill-item').outerHTML;
+                    if (displayArea) displayArea.innerHTML = skillLabelHtml + skillItemHtml;
+                }
+            } else if (skillsArea && skillsArea.classList.contains('skills-area-detail-view')) {
+                const partySlot = skillsArea.closest('.party-slot');
+                const displayArea = partySlot.querySelector('.active-skill-display');
+                
+                skillsArea.classList.remove('skills-area-detail-view');
+                skillsArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active'));
+                if (displayArea) displayArea.innerHTML = '';
             }
         });
-    });
 
-    // 初期表示
-    renderPartySlots();
-</script>
+        // ドロワー開閉ボタンのクリックイベント
+        toggleButton.addEventListener('click', () => {
+            drawer.classList.toggle('open');
+            toggleButton.textContent = drawer.classList.contains('open') ? '◀' : '▶';
+        });
+
+        // ドロワー外（メインコンテンツ）をクリックしたらドロワーを閉じる
+        mainContainer.addEventListener('click', () => {
+            if (drawer.classList.contains('open')) {
+                drawer.classList.remove('open');
+                toggleButton.textContent = '▶';
+            }
+        });
+
+        // エイリアン一覧の各カードのクリックイベント
+        alienCards.forEach(card => {
+            card.addEventListener('click', (event) => {
+                event.stopPropagation(); // ドロワーを閉じるイベントが発火しないようにする
+                if (card.classList.contains('selected')) {
+                    removeFromParty(card.dataset.id);
+                } else {
+                    addToParty(card.dataset);
+                }
+            });
+        });
+
+        // --- 初期表示 ---
+        renderPartySlots();
+    </script>
 </body>
 </html>
