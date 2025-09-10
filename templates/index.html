@@ -680,8 +680,8 @@
                                     data-alien-id="${alienData.id}" 
                                     data-skill-num="${j}" 
                                     data-cond-type="${req.condition_type}" 
-                                    data-cond-val="${req.condition_value}">
-                                    <img src="/static/icon/${iconFile}">
+                                    data-cond-val="${req.condition_value}"
+                                    data-cond-count="${req.condition_count}">  <img src="/static/icon/${iconFile}">
                                     ${countHtml}
                                 </div>`;
                         });
@@ -774,10 +774,13 @@
                     
                     const is_satisfied = actual_count >= cond_count;
                     
-                    const targetIcons = document.querySelectorAll(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${cond_type}'][data-cond-val='${cond_value}']`);
-                    targetIcons.forEach(icon => {
-                        icon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false');
-                    });
+                    // ★★★ querySelectorAll から querySelector に変更し、セレクタに data-cond-count を追加 ★★★
+                    const targetIcon = document.querySelector(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${req.condition_type}'][data-cond-val='${req.condition_value}'][data-cond-count='${req.condition_count}']`);
+
+                    // ★★★ 1つの要素だけを更新するように変更 ★★★
+                    if (targetIcon) {
+                        targetIcon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false');
+                    }
                 });
             });
         }
