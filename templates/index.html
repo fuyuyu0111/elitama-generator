@@ -26,12 +26,23 @@
         /* ==========================================================================
             全体レイアウト
             ========================================================================== */
-        .header { height: var(--header-height); background-color: var(--dark-bg); border-bottom: 0.237vh solid var(--accent-green); display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: bold; margin-bottom: 0.947vh; }
+        .header {
+            position: relative; /* ボタン配置の基準 */
+            height: var(--header-height);
+            background-color: var(--dark-bg);
+            border-bottom: 0.237vh solid var(--accent-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 0.947vh;
+        }
         .layout-wrapper { max-width: 46.208vh; height: calc(100vh - 1.895vh - var(--header-height) - 0.947vh); margin: 0 auto; position: relative; z-index: 1; overflow: hidden; }
         .main-container { display: flex; height: 100%; }
 
         /* ==========================================================================
-            編成表示エリア (.party-display-area)
+            編成表示エリア
             ========================================================================== */
         .party-display-area { width: 100%; display: flex; flex-direction: column; gap: 0.474vh; }
         .party-slot { position: relative; background-color: var(--slot-bg); border: 0.118vh solid var(--border-color); border-radius: 0.947vh; display: grid; padding: 0.947vh; height: calc((100% - 1.895vh) / 5); gap: 0.474vh 0.947vh; grid-template-columns: 9.478vh 13.033vh 1fr; grid-template-rows: auto 1fr; grid-template-areas: "name   name    name" "icon   stats   skills"; overflow: visible; }
@@ -40,7 +51,7 @@
         .attribute-icon { height: 1.8vh; width: auto; margin-left: 0.5vh; flex-shrink: 0; }
         .slot-icon-area { grid-area: icon; display: flex; align-items: center; justify-content: center; }
         .slot-icon { width: 100%; max-width: 8.293vh; height: auto; border: 0.237vh solid var(--accent-green); border-radius: 0.947vh; cursor: pointer; }
-        .icon-placeholder { width: 100%; max-width: 8.293vh; aspect-ratio: 1 / 1; border: 0.237vh dashed var(--border-color); border-radius: 0.947vh; cursor: pointer; -webkit-tap-highlight-color: transparent;}
+        .icon-placeholder { width: 100%; max-width: 8.293vh; aspect-ratio: 1 / 1; border: 0.237vh dashed var(--border-color); border-radius: 0.947vh; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .slot-stats-area { grid-area: stats; display: flex; flex-direction: column; justify-content: center; gap: 0.947vh; }
         .stats-block { font-size: 0.9em; }
         .stats-block-label { font-size: 0.8em; }
@@ -87,17 +98,17 @@
         .control-button.filtered { background-color: #d9534f; border-color: #d43f3a; }
         .sort-order-button { background-color: #6a7a8a; border-color: #5a6a7a; }
         .filter-menu { display: none; padding: 0.947vh; background-color: #1a2a3a; border-bottom: 0.118vh solid var(--border-color); }
-        .filter-row { display: flex; gap: 0vh; }
+        .filter-row { display: flex; gap: 0.947vh; }
         .filter-section { margin-bottom: 0.947vh; flex: 1; }
         .filter-row .filter-section { min-width: 0; }
-        .filter-label { font-size: 1.421vh; font-weight: bold; margin-bottom: 0.474vh; display: flex; align-items: center; gap: 0.947vh;}
+        .filter-label { font-size: 1.421vh; font-weight: bold; margin-bottom: 0.474vh; display: flex; align-items: center; gap: 0.947vh; }
         .filter-options { display: flex; flex-wrap: wrap; gap: 0.474vh; }
         .filter-button { background-color: transparent; border: none; padding: 0; cursor: pointer; border-radius: 0.474vh; -webkit-tap-highlight-color: transparent; }
         .filter-button img { width: 3.791vh; height: 3.791vh; display: block; opacity: 0.4; transition: opacity 0.2s, filter 0.2s; }
-        .filter-button.selected img { opacity: 1;  filter: drop-shadow(0 0 0.3vh var(--accent-green)) drop-shadow(0 0 0.3vh var(--accent-green)); }
+        .filter-button.selected img { opacity: 1; filter: drop-shadow(0 0 0.3vh var(--accent-green)) drop-shadow(0 0 0.3vh var(--accent-green)); }
         .all-button { width: auto; padding: 0.237vh 0.947vh; height: auto; border: 0.118vh solid var(--border-color); border-radius: 0.474vh; color: var(--light-text); font-size: 1.3vh; font-weight: normal; background-color: #4a5a6a; transition: background-color 0.2s; }
         .all-button.selected { background-color: #f0ad4e; }
-        .sort-menu { display: none; position: absolute; top: 5.924vh;  right: 1.421vh; background-color: #1a2a3a; border: 0.118vh solid var(--border-color); border-radius: 0.592vh; z-index: 1002; padding: 0.592vh; }
+        .sort-menu { display: none; position: absolute; top: 5.924vh; right: 1.421vh; background-color: #1a2a3a; border: 0.118vh solid var(--border-color); border-radius: 0.592vh; z-index: 1002; padding: 0.592vh; }
         .sort-menu button { display: block; width: 100%; text-align: left; -webkit-tap-highlight-color: transparent; }
         .alien-grid { padding: 0.947vh; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.592vh; overflow-y: auto; flex-grow: 1; }
         .alien-card { text-align: center; cursor: pointer; position: relative; min-width: 0; -webkit-tap-highlight-color: transparent; }
@@ -106,47 +117,39 @@
         .alien-name { display: block; font-size: 1.184vh; font-weight: bold; margin-top: 0.237vh; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
         .alien-card.selected { filter: contrast(60%); }
         .alien-card.selected::after { content: '編成中'; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 0, 0, 0.8); color: white; padding: 0.474vh 0.947vh; border-radius: 0.474vh; font-size: 1.303vh; font-weight: bold; white-space: nowrap; pointer-events: none; }
-        .drawer-toggle { position: fixed; top: 50%; left: 0; transform: translateY(-50%); width: 3.554vh; height: 7.109vh; background-color: var(--dark-bg); color: var(--light-text); border: 0.237vh solid var(--accent-green); border-left: none; border-radius: 0 0.947vh 0.947vh 0; cursor: pointer; z-index: 1001; transition: left 0.1s ease-in-out; display: flex; align-items: center; justify-content: center; }
+        .drawer-toggle { position: fixed; top: 50%; left: 0; transform: translateY(-50%); width: 3.554vh; height: 7.109vh; background-color: var(--dark-bg); color: var(--light-text); border: 0.237vh solid var(--accent-green); border-left: none; border-radius: 0 0.947vh 0.947vh 0; cursor: pointer; z-index: 1001; transition: left 0.1s ease-in-out; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
         .alien-drawer.open+.drawer-toggle { left: 95vw; }
-        @media (min-width: 382px) { .alien-drawer.open+.drawer-toggle { left: 42.65vh; } }
-         .filter-row .filter-section#filter-section-attribute {
-            flex: 4; /* 「属性」は4項目なので比率を4に */
-        }
-        .filter-row .filter-section#filter-section-affiliation {
-            flex: 5; /* 「所属」は5項目なので比率を5に */
-        }
-        .filter-row .filter-section#filter-section-attack_area {
-            flex: 4; /* 「攻撃はんい」は2項目なので比率を2に */
-        }
-        .filter-row .filter-section#filter-section-attack_range {
-            flex: 5; /* 「攻撃きょり」は3項目なので比率を3に */
-        }
-        .sort-value-display {
-            position: absolute;
-            bottom: 1.6vh;
-            left: 0;
-            right: 0;
-            margin: 0 auto;
-            font-size: 1.05vh;
-            font-weight: bold;
-            color: var(--accent-green); /* ★★★ 文字色をアクセントカラーに戻しました ★★★ */
-            /* text-shadow を削除 */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.4;
-        }
-        
-        /* テキストが存在する場合のみ背景を表示 */
-        .sort-value-display:not(:empty) {
-            background-color: rgba(0, 0, 0, 0.8); /* ★★★ 背景の透明度を調整しました ★★★ */
-            padding: 0.1vh 0;
-        }
-                </style>
+        @media (min-width: 0px) { .alien-drawer.open+.drawer-toggle { left: 42.65vh; } }
+        .filter-row .filter-section#filter-section-attribute { flex: 4; }
+        .filter-row .filter-section#filter-section-affiliation { flex: 5; }
+        .filter-row .filter-section#filter-section-attack_area { flex: 2; }
+        .filter-row .filter-section#filter-section-attack_range { flex: 3; }
+        .sort-value-display { position: absolute; bottom: 1.6vh; left: 0; right: 0; margin: 0 auto; font-size: 1.05vh; font-weight: bold; color: var(--accent-green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+        .sort-value-display:not(:empty) { background-color: rgba(0, 0, 0, 0.8); padding: 0.1vh 0; }
+        .header-button {  background: var(--border-color); color: var(--light-text); border: none; border-radius: 50%; width: 3.2vh; height: 3.2vh; font-size: 1.6vh; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+        .header-help-container { position: absolute; right: 1.5vh; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .help-button-label { font-size: 0.9vh; font-weight: bold; margin-top: 0.2vh; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; z-index: 2000; }
+        .modal-content { background: var(--dark-bg); padding: 2.5vh; border-radius: 1vh; border: 0.2vh solid var(--accent-green); width: 90%; max-width: 45vh; color: var(--light-text); }
+        .modal-content h2 { text-align: center; margin-top: 0; font-size: 1.5em; }
+        .modal-content ol { padding-left: 2.5vh; }
+        .modal-content li { margin-bottom: 1.2vh; line-height: 1.5; }
+        .modal-content #close-modal-button { display: block; margin: 1.5vh auto 0; background-color: #6a7a8a; border-color: #5a6a7a; }
+        .modal-overview {  font-size: 1.3vh; line-height: 1.6; margin-bottom: 2vh; text-align: center; }
+        .modal-links { margin-top: 2.5vh; font-size: 1.4vh; text-align: center; }
+        .modal-links a { color: var(--accent-green); text-decoration: none; }
+        .modal-links a:hover { text-decoration: underline; }
+    </style>
 </head>
 
 <body>
-    <header class="header">エリジェネ</header>
+    <header class="header">
+        エリジェネ
+            <div class="header-help-container">
+                <button id="help-button" class="header-button">？</button>
+                <div class="help-button-label">使い方</div>
+            </div>   
+         </header>
 
     <div class="layout-wrapper">
         <div class="main-container" id="main-container">
@@ -205,13 +208,35 @@
                 data-info-e4="{{ alien.type_4 }}" 
                 title="{{ alien.name }}">
                 <img src="/static/images/{{ alien.id }}.png" alt="{{ alien.name }}">
-                <div class="sort-value-display"></div> <div class="alien-name">{{ alien.name }}</div>
-            </div>      
-      {% endfor %}
+                <div class="sort-value-display"></div>
+                <div class="alien-name">{{ alien.name }}</div>
+            </div>
+            {% endfor %}
         </div>
     </div>
 
     <button class="drawer-toggle" id="drawer-toggle">▶</button>
+
+    <div id="help-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>使い方</h2>
+            <p class="modal-overview">
+                このツールは「エイリアンのたまご(エリたま)」の編成支援ジェネレーターです。チームに加えたエイリアンの個性発動条件が満たされているかをリアルタイムでシミュレーションできます。
+            </p>
+            <ol>
+                <li>空のスロット（破線枠）または▶をタップして、エイリアン一覧を開きます。</li>
+                <li>一覧からエイリアンをタップして編成に追加します。</li>
+                <li>編成されたエイリアンのアイコンをタップすると、編成から外れます。</li>
+                <li>ゲーム内と同様に個性名をタップすると、説明文が表示されます。</li>
+                <li>絞り込みや並び替えを活用して、目的のエイリアンを探せます。</li>
+            </ol>
+            <div class="modal-links">
+                <p><a href="https://twitter.com/by_kanikama" target="_blank" rel="noopener noreferrer">制作者X</a></p>
+                <p><a href="https://discord.gg/bq5E38HUec" target="_blank" rel="noopener noreferrer">エリたまDiscord</a>（誰でも歓迎！）</p>
+            </div>
+            <button id="close-modal-button" class="control-button">閉じる</button>
+        </div>
+    </div>
 
     <script>
         // ==========================================================================
@@ -252,363 +277,43 @@
         let currentSort = { key: 'id', order: 'desc' };
         let activeFilters = {};
 
-        // --------------------------------------------------------------------------
-        //  データ管理・状態操作
-        // --------------------------------------------------------------------------
+        // --- データ管理・状態操作 ---
+        async function addToParty(alienCardDataSet) { if (party.length >= 5) return; const isAlreadyInParty = party.some(member => member.id === alienCardDataSet.id); if (isAlreadyInParty) return; party.push(alienCardDataSet); renderPartySlots(); const alienId = alienCardDataSet.id; if (!skillTextsCache[alienId]) { try { const response = await fetch(`/api/alien_details/${alienId}`); if (response.ok) { const details = await response.json(); skillTextsCache[alienId] = details; renderPartySlots(); } } catch (error) { console.error('Error fetching skill texts:', error); } } }
+        function removeFromParty(alienId) { party = party.filter(alien => alien.id !== alienId); renderPartySlots(); }
+        function openDrawer(event) { event.stopPropagation(); if (!drawer.classList.contains('open')) { drawer.classList.add('open'); toggleButton.textContent = '◀'; } }
 
-        async function addToParty(alienCardDataSet) {
-            if (party.length >= 5) return;
-            const isAlreadyInParty = party.some(member => member.id === alienCardDataSet.id);
-            if (isAlreadyInParty) return;
-            party.push(alienCardDataSet);
-            renderPartySlots();
-            const alienId = alienCardDataSet.id;
-            if (!skillTextsCache[alienId]) {
-                try {
-                    const response = await fetch(`/api/alien_details/${alienId}`);
-                    if (response.ok) {
-                        const details = await response.json();
-                        skillTextsCache[alienId] = details;
-                        renderPartySlots();
-                    }
-                } catch (error) { console.error('Error fetching skill texts:', error); }
-            }
-        }
-        function removeFromParty(alienId) {
-            party = party.filter(alien => alien.id !== alienId);
-            renderPartySlots();
-        }
-        function openDrawer(event) {
-            event.stopPropagation(); // ★★★ この行でイベントの伝播を止めます ★★★
-            if (!drawer.classList.contains('open')) {
-                drawer.classList.add('open');
-                toggleButton.textContent = '◀';
-            }
-        }
-
-        // --------------------------------------------------------------------------
-        //  DOM操作・表示更新
-        // --------------------------------------------------------------------------
-
-        function renderPartySlots() {
-            partyDisplay.innerHTML = '';
-            for (let i = 0; i < 5; i++) {
-                const isOccupied = i < party.length;
-                const alienData = isOccupied ? party[i] : null;
-                let attributeIconHtml = '';
-                if (isOccupied && alienData.infoA && alienData.infoA !== 'None') { attributeIconHtml = `<img class="attribute-icon" src="/static/icon/a${alienData.infoA}.png">`; }
-                const nameArea = `<div class="slot-name-area"><div class="character-name"><span class="name-text">${isOccupied ? alienData.name : ''}</span>${attributeIconHtml}</div><div class="active-skill-display"></div></div>`;
-                const iconArea = `<div class="slot-icon-area">${isOccupied ? `<img src="/static/images/${alienData.id}.png" class="slot-icon" onclick="removeFromParty('${alienData.id}')">` : '<div class="icon-placeholder" onclick="openDrawer(event)"></div>'}</div>`;
-                let attackHtml = '';
-                if (isOccupied) {
-                    if (alienData.infoD && alienData.infoD !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.infoD}.png">`;
-                    if (alienData.infoC && alienData.infoC !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.infoC}.png">`;
-                    if (alienData.infoB && alienData.infoB !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.infoB}.png">`;
-                }
-                let typeHtml = '';
-                if (isOccupied) {
-                    if (alienData.infoF && alienData.infoF !== 'None') { typeHtml += `<img class="info-icon" src="/static/icon/f${alienData.infoF}.png">`; } else { typeHtml += `<div class="icon-placeholder-small"></div>`; }
-                    for (let j = 1; j <= 4; j++) { const typeValue = alienData[`infoE${j}`]; if (typeValue && typeValue !== 'None') { typeHtml += `<img class="info-icon" src="/static/icon/e${typeValue}.png">`; } }
-                }
-                const statsArea = `<div class="slot-stats-area"><div class="stats-block"><div class="stats-block-label">こうげき/所属</div><div class="stats-block-divider"></div><div class="icon-container">${attackHtml}</div></div><div class="stats-block"><div class="stats-block-label">タイプ</div><div class="stats-block-divider"></div><div class="icon-container">${typeHtml}</div></div></div>`;
-                let skillsAreaContent = '';
-                const alienReqs = isOccupied ? (ALL_REQUIREMENTS[alienData.id] || []) : [];
-                for (let j = 1; j <= 3; j++) {
-                    const skillName = isOccupied ? (alienData[`skill_no${j}_name`] || '(個性なし)') : '';
-                    let skillText = '';
-                    if (isOccupied) { const cachedDetails = skillTextsCache[alienData.id]; if (cachedDetails) { skillText = cachedDetails[`skill_text${j}`] || '説明文がありません。'; } else { skillText = '読み込み中...'; } }
-                    let reqIconsHtml = '';
-                    if (isOccupied) {
-                        alienReqs.filter(req => req.skill_number == j).forEach(req => {
-                            const iconFile = `${req.condition_type}${req.condition_value}.png`;
-                            let countHtml = '';
-                            if (req.condition_count >= 2) { countHtml = `<span class="req-count">${req.condition_count}</span>`; }
-                            reqIconsHtml += `<div class="req-icon-wrapper" data-alien-id="${alienData.id}" data-skill-num="${j}" data-cond-type="${req.condition_type}" data-cond-val="${req.condition_value}" data-cond-count="${req.condition_count}"><img src="/static/icon/${iconFile}">${countHtml}</div>`;
-                        });
-                    }
-                    skillsAreaContent += `<div class="skill-block"><div class="skill-label">個性${j}</div><div class="skill-item"><div class="skill-name">${skillName}</div><div class="skill-req-icons">${reqIconsHtml}</div></div><div class="skill-description">${skillText.replace(/\n/g, '<br>')}</div></div>`;
-                }
-                const skillsArea = `<div class="slot-skills-area">${skillsAreaContent}</div>`;
-                const slot = document.createElement('div');
-                slot.className = 'party-slot';
-                slot.innerHTML = nameArea + iconArea + statsArea + skillsArea;
-                partyDisplay.appendChild(slot);
-            }
-            updateSelectedStatusInList();
-            checkPartyRealtime();
-        }
+        // --- DOM操作・表示更新 ---
+        function renderPartySlots() { partyDisplay.innerHTML = ''; for (let i = 0; i < 5; i++) { const isOccupied = i < party.length; const alienData = isOccupied ? party[i] : null; let attributeIconHtml = ''; if (isOccupied && alienData.infoA && alienData.infoA !== 'None') { attributeIconHtml = `<img class="attribute-icon" src="/static/icon/a${alienData.infoA}.png">`; } const nameArea = `<div class="slot-name-area"><div class="character-name"><span class="name-text">${isOccupied ? alienData.name : ''}</span>${attributeIconHtml}</div><div class="active-skill-display"></div></div>`; const iconArea = `<div class="slot-icon-area">${isOccupied ? `<img src="/static/images/${alienData.id}.png" class="slot-icon" onclick="removeFromParty('${alienData.id}')">` : '<div class="icon-placeholder" onclick="openDrawer(event)"></div>'}</div>`; let attackHtml = ''; if (isOccupied) { if (alienData.infoD && alienData.infoD !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.infoD}.png">`; if (alienData.infoC && alienData.infoC !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.infoC}.png">`; if (alienData.infoB && alienData.infoB !== 'None') attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.infoB}.png">`; } let typeHtml = ''; if (isOccupied) { if (alienData.infoF && alienData.infoF !== 'None') { typeHtml += `<img class="info-icon" src="/static/icon/f${alienData.infoF}.png">`; } else { typeHtml += `<div class="icon-placeholder-small"></div>`; } for (let j = 1; j <= 4; j++) { const typeValue = alienData[`infoE${j}`]; if (typeValue && typeValue !== 'None') { typeHtml += `<img class="info-icon" src="/static/icon/e${typeValue}.png">`; } } } const statsArea = `<div class="slot-stats-area"><div class="stats-block"><div class="stats-block-label">こうげき/所属</div><div class="stats-block-divider"></div><div class="icon-container">${attackHtml}</div></div><div class="stats-block"><div class="stats-block-label">タイプ</div><div class="stats-block-divider"></div><div class="icon-container">${typeHtml}</div></div></div>`; let skillsAreaContent = ''; const alienReqs = isOccupied ? (ALL_REQUIREMENTS[alienData.id] || []) : []; for (let j = 1; j <= 3; j++) { const skillName = isOccupied ? (alienData[`skill_no${j}_name`] || '(個性なし)') : ''; let skillText = ''; if (isOccupied) { const cachedDetails = skillTextsCache[alienData.id]; if (cachedDetails) { skillText = cachedDetails[`skill_text${j}`] || '説明文がありません。'; } else { skillText = '読み込み中...'; } } let reqIconsHtml = ''; if (isOccupied) { alienReqs.filter(req => req.skill_number == j).forEach(req => { const iconFile = `${req.condition_type}${req.condition_value}.png`; let countHtml = ''; if (req.condition_count >= 2) { countHtml = `<span class="req-count">${req.condition_count}</span>`; } reqIconsHtml += `<div class="req-icon-wrapper" data-alien-id="${alienData.id}" data-skill-num="${j}" data-cond-type="${req.condition_type}" data-cond-val="${req.condition_value}" data-cond-count="${req.condition_count}"><img src="/static/icon/${iconFile}">${countHtml}</div>`; }); } skillsAreaContent += `<div class="skill-block"><div class="skill-label">個性${j}</div><div class="skill-item"><div class="skill-name">${skillName}</div><div class="skill-req-icons">${reqIconsHtml}</div></div><div class="skill-description">${skillText.replace(/\n/g, '<br>')}</div></div>`; } const skillsArea = `<div class="slot-skills-area">${skillsAreaContent}</div>`; const slot = document.createElement('div'); slot.className = 'party-slot'; slot.innerHTML = nameArea + iconArea + statsArea + skillsArea; partyDisplay.appendChild(slot); } updateSelectedStatusInList(); checkPartyRealtime(); }
+        function updateSelectedStatusInList() { const partyIds = new Set(party.map(p => p.id)); document.querySelectorAll('.alien-card').forEach(card => { card.classList.toggle('selected', partyIds.has(card.dataset.id)); }); }
         
-        function updateSelectedStatusInList() {
-            const partyIds = new Set(party.map(p => p.id));
-            document.querySelectorAll('.alien-card').forEach(card => {
-                card.classList.toggle('selected', partyIds.has(card.dataset.id));
-            });
-        }
+        // --- 要求判定ロジック ---
+        function checkPartyRealtime() { document.querySelectorAll('.req-icon-wrapper').forEach(wrapper => { wrapper.classList.remove('visible', 'satisfied-true', 'satisfied-false'); }); if (party.length < 1) return; const party_composition = { 'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {} }; party.forEach(member => { if(member.infoA && member.infoA !== 'None') party_composition.a[member.infoA] = (party_composition.a[member.infoA] || 0) + 1; if(member.infoB && member.infoB !== 'None') party_composition.b[member.infoB] = (party_composition.b[member.infoB] || 0) + 1; if(member.infoC && member.infoC !== 'None') party_composition.c[member.infoC] = (party_composition.c[member.infoC] || 0) + 1; if(member.infoD && member.infoD !== 'None') party_composition.d[member.infoD] = (party_composition.d[member.infoD] || 0) + 1; if(member.infoF && member.infoF !== 'None') party_composition.f[member.infoF] = (party_composition.f[member.infoF] || 0) + 1; for (let i = 1; i <= 4; i++) { const type = member[`infoE${i}`]; if (type && type !== 'None') party_composition.e[type] = (party_composition.e[type] || 0) + 1; } }); party.forEach(member => { const memberId = member.id; const memberRequirements = ALL_REQUIREMENTS[memberId] || []; memberRequirements.forEach(req => { const cond_type = req.condition_type; const cond_value = String(req.condition_value); const cond_count = req.condition_count; let actual_count = party_composition[cond_type]?.[cond_value] || 0; let is_self_condition = false; if (cond_type === 'a' && member.infoA === cond_value && member.infoA !== 'None') is_self_condition = true; if (cond_type === 'b' && member.infoB === cond_value && member.infoB !== 'None') is_self_condition = true; if (cond_type === 'c' && member.infoC === cond_value && member.infoC !== 'None') is_self_condition = true; if (cond_type === 'd' && member.infoD === cond_value && member.infoD !== 'None') is_self_condition = true; if (cond_type === 'f' && member.infoF === cond_value && member.infoF !== 'None') is_self_condition = true; if (cond_type === 'e') { const types = [member.infoE1, member.infoE2, member.infoE3, member.infoE4]; if (types.includes(cond_value) && cond_value !== 'None') { is_self_condition = true; } } if (is_self_condition) { actual_count -= 1; } const is_satisfied = actual_count >= cond_count; const targetIcon = document.querySelector(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${req.condition_type}'][data-cond-val='${req.condition_value}'][data-cond-count='${req.condition_count}']`); if (targetIcon) { targetIcon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false'); } }); }); }
         
-        // --------------------------------------------------------------------------
-        //  要求判定ロジック
-        // --------------------------------------------------------------------------
+        // --- 絞り込み・並び替え関連ロジック ---
+        function updateAlienGrid() { const sortValueMappings = { affiliation: { '1': '宇宙連合', '2': '星間帝国', '3': '恒星連邦', '4': 'unknown', '5': '銀河同盟' }, attack_range: { '1': 'ちかい', '2': 'ふつう', '3': 'とおい' }, attack_area: { '1': 'たんたい', '2': 'はんい' } }; const sections = document.querySelectorAll('.filter-section'); for (const section of sections) { if (section.querySelector('.filter-options').hasChildNodes() && section.querySelectorAll('.filter-button.selected:not(.all-button)').length === 0) { alienGrid.innerHTML = ''; updateFilterUIState(); return; } } const filteredAliens = allAliensData.filter(alien => { return Object.entries(activeFilters).every(([key, valueSet]) => { if (!valueSet || valueSet.size === 0) return true; if (key === 'types') { return alien.types.some(type => valueSet.has(type)); } return valueSet.has(String(alien[key])); }); }); filteredAliens.sort((a, b) => { const key = currentSort.key; const order = currentSort.order === 'asc' ? 1 : -1; const valA = a[key] ?? -1; const valB = b[key] ?? -1; if (valA < valB) return -1 * order; if (valA > valB) return 1 * order; if (a.id < b.id) return 1; if (a.id > b.id) return -1; return 0; }); alienGrid.innerHTML = ''; filteredAliens.forEach(alien => { const sortKey = currentSort.key; const displayElement = alien.element.querySelector('.sort-value-display'); if (displayElement && sortValueMappings[sortKey]) { const value = alien[sortKey]; displayElement.textContent = sortValueMappings[sortKey][value] || ''; } else if (displayElement) { displayElement.textContent = ''; } alienGrid.appendChild(alien.element); }); updateFilterUIState(); }
+        function createFilterButtons() { const filters = { attribute: { containerId: 'filter-section-attribute', label: '属性', prefix: 'a', count: 4 }, affiliation: { containerId: 'filter-section-affiliation', label: '所属', prefix: 'b', count: 5 }, attack_area: { containerId: 'filter-section-attack_area', label: '攻撃はんい', prefix: 'c', count: 2 }, attack_range: { containerId: 'filter-section-attack_range', label: '攻撃きょり', prefix: 'd', count: 3 }, role: { containerId: 'filter-section-role', label: 'ロール', prefix: 'f', count: 4 }, types: { containerId: 'filter-section-types', label: 'タイプ', prefix: 'e', values: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','AA','AB','AC','AD','AH','AI','AJ','AK','AL','AM','AN','AO','AP','AQ','AR','AS','AT','AU','AV'] } }; for (const [key, config] of Object.entries(filters)) { const section = document.getElementById(config.containerId); const labelDiv = document.createElement('div'); labelDiv.className = 'filter-label'; labelDiv.innerHTML = `<span>${config.label}</span>`; const allBtn = document.createElement('button'); allBtn.className = 'filter-button all-button selected'; allBtn.textContent = 'すべて'; labelDiv.appendChild(allBtn); section.appendChild(labelDiv); const optionsDiv = document.createElement('div'); optionsDiv.className = 'filter-options'; section.appendChild(optionsDiv); const optionButtons = []; const values = config.values || Array.from({ length: config.count }, (_, i) => i + 1); values.forEach(val => { const btn = document.createElement('button'); btn.className = 'filter-button selected'; btn.dataset.key = key; btn.dataset.value = val; btn.innerHTML = `<img src="/static/icon/${config.prefix}${val}.png">`; optionsDiv.appendChild(btn); optionButtons.push(btn); }); optionButtons.forEach(btn => { btn.addEventListener('click', () => { btn.classList.toggle('selected'); applyFilters(); }); }); allBtn.addEventListener('click', () => { const isAllSelected = optionButtons.every(b => b.classList.contains('selected')); optionButtons.forEach(b => b.classList.toggle('selected', !isAllSelected)); applyFilters(); }); } }
+        function applyFilters() { activeFilters = {}; document.querySelectorAll('.filter-button.selected:not(.all-button)').forEach(btn => { const key = btn.dataset.key; const value = btn.dataset.value; if (!activeFilters[key]) activeFilters[key] = new Set(); activeFilters[key].add(value); }); updateAlienGrid(); }
+        function updateFilterUIState() { let isAnyFilterActive = false; document.querySelectorAll('.filter-section').forEach(section => { const allBtn = section.querySelector('.all-button'); if (!allBtn) return; const optionButtons = Array.from(section.querySelectorAll('.filter-button:not(.all-button)')); const selectedCount = section.querySelectorAll('.filter-button.selected:not(.all-button)').length; const isAllSelected = selectedCount === optionButtons.length; allBtn.classList.toggle('selected', isAllSelected); if (!isAllSelected) { isAnyFilterActive = true; } }); filterButton.classList.toggle('filtered', isAnyFilterActive); }
 
-        function checkPartyRealtime() {
-            document.querySelectorAll('.req-icon-wrapper').forEach(wrapper => { wrapper.classList.remove('visible', 'satisfied-true', 'satisfied-false'); });
-            if (party.length < 1) return;
-            const party_composition = { 'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {} };
-            party.forEach(member => {
-                if(member.infoA && member.infoA !== 'None') party_composition.a[member.infoA] = (party_composition.a[member.infoA] || 0) + 1;
-                if(member.infoB && member.infoB !== 'None') party_composition.b[member.infoB] = (party_composition.b[member.infoB] || 0) + 1;
-                if(member.infoC && member.infoC !== 'None') party_composition.c[member.infoC] = (party_composition.c[member.infoC] || 0) + 1;
-                if(member.infoD && member.infoD !== 'None') party_composition.d[member.infoD] = (party_composition.d[member.infoD] || 0) + 1;
-                if(member.infoF && member.infoF !== 'None') party_composition.f[member.infoF] = (party_composition.f[member.infoF] || 0) + 1;
-                for (let i = 1; i <= 4; i++) { const type = member[`infoE${i}`]; if (type && type !== 'None') party_composition.e[type] = (party_composition.e[type] || 0) + 1; }
-            });
-            party.forEach(member => {
-                const memberId = member.id;
-                const memberRequirements = ALL_REQUIREMENTS[memberId] || [];
-                memberRequirements.forEach(req => {
-                    const cond_type = req.condition_type;
-                    const cond_value = String(req.condition_value);
-                    const cond_count = req.condition_count;
-                    let actual_count = party_composition[cond_type]?.[cond_value] || 0;
-                    let is_self_condition = false;
-                    if (cond_type === 'a' && member.infoA === cond_value && member.infoA !== 'None') is_self_condition = true;
-                    if (cond_type === 'b' && member.infoB === cond_value && member.infoB !== 'None') is_self_condition = true;
-                    if (cond_type === 'c' && member.infoC === cond_value && member.infoC !== 'None') is_self_condition = true;
-                    if (cond_type === 'd' && member.infoD === cond_value && member.infoD !== 'None') is_self_condition = true;
-                    if (cond_type === 'f' && member.infoF === cond_value && member.infoF !== 'None') is_self_condition = true;
-                    if (cond_type === 'e') { const types = [member.infoE1, member.infoE2, member.infoE3, member.infoE4]; if (types.includes(cond_value) && cond_value !== 'None') { is_self_condition = true; } }
-                    if (is_self_condition) { actual_count -= 1; }
-                    const is_satisfied = actual_count >= cond_count;
-                    const targetIcon = document.querySelector(`.req-icon-wrapper[data-alien-id='${memberId}'][data-skill-num='${req.skill_number}'][data-cond-type='${req.condition_type}'][data-cond-val='${req.condition_value}'][data-cond-count='${req.condition_count}']`);
-                    if (targetIcon) { targetIcon.classList.add('visible', is_satisfied ? 'satisfied-true' : 'satisfied-false'); }
-                });
-            });
-        }
-        
-        // --------------------------------------------------------------------------
-        //  絞り込み・並び替え関連ロジック
-        // --------------------------------------------------------------------------
-
-function updateAlienGrid() {
-            // ★★★ 並び替え項目のテキスト変換マップを定義 ★★★
-            const sortValueMappings = {
-                affiliation: { '1': '宇宙連合', '2': '星間帝国', '3': '恒星連邦', '4': 'unknown', '5': '銀河同盟' },
-                attack_range: { '1': 'ちかい', '2': 'ふつう', '3': 'とおい' },
-                attack_area: { '1': 'たんたい', '2': 'はんい' }
-            };
-
-            // いずれかのカテゴリで選択数が0になっていないかチェック
-            const sections = document.querySelectorAll('.filter-section');
-            for (const section of sections) {
-                if (section.querySelector('.filter-options').hasChildNodes() && section.querySelectorAll('.filter-button.selected:not(.all-button)').length === 0) {
-                    alienGrid.innerHTML = ''; 
-                    updateFilterUIState();
-                    return;
-                }
-            }
-            
-            const filteredAliens = allAliensData.filter(alien => {
-                return Object.entries(activeFilters).every(([key, valueSet]) => {
-                    if (!valueSet || valueSet.size === 0) return true;
-                    if (key === 'types') {
-                        return alien.types.some(type => valueSet.has(type));
-                    }
-                    return valueSet.has(String(alien[key]));
-                });
-            });
-
-            filteredAliens.sort((a, b) => {
-                const key = currentSort.key;
-                const order = currentSort.order === 'asc' ? 1 : -1;
-                const valA = a[key] ?? -1; const valB = b[key] ?? -1;
-                if (valA < valB) return -1 * order; if (valA > valB) return 1 * order;
-                if (a.id < b.id) return 1; if (a.id > b.id) return -1;
-                return 0;
-            });
-            
-            alienGrid.innerHTML = '';
-            filteredAliens.forEach(alien => {
-                // ★★★ ここからが修正部分 ★★★
-                const sortKey = currentSort.key;
-                const displayElement = alien.element.querySelector('.sort-value-display');
-                
-                if (displayElement && sortValueMappings[sortKey]) {
-                    const value = alien[sortKey];
-                    displayElement.textContent = sortValueMappings[sortKey][value] || '';
-                } else if (displayElement) {
-                    displayElement.textContent = ''; // 対象外のソートキーの場合はテキストを消す
-                }
-                // ★★★ ここまでが修正部分 ★★★
-
-                alienGrid.appendChild(alien.element);
-            });
-
-            updateFilterUIState();
-        }
-        function createFilterButtons() {
-            const filters = {
-                attribute:    { containerId: 'filter-section-attribute',    label: '属性',       prefix: 'a', count: 4 },
-                affiliation:  { containerId: 'filter-section-affiliation',  label: '所属',       prefix: 'b', count: 5 },
-                attack_area:  { containerId: 'filter-section-attack_area',  label: '攻撃はんい', prefix: 'c', count: 2 },
-                attack_range: { containerId: 'filter-section-attack_range', label: '攻撃きょり', prefix: 'd', count: 3 },
-                role:         { containerId: 'filter-section-role',         label: 'ロール',     prefix: 'f', count: 4 },
-                types:        { containerId: 'filter-section-types',        label: 'タイプ',     prefix: 'e', values: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','AA','AB','AC','AD','AH','AI','AJ','AK','AL','AM','AN','AO','AP','AQ','AR','AS','AT','AU','AV'] }
-            };
-
-            for (const [key, config] of Object.entries(filters)) {
-                const section = document.getElementById(config.containerId);
-                const labelDiv = document.createElement('div');
-                labelDiv.className = 'filter-label';
-                labelDiv.innerHTML = `<span>${config.label}</span>`;
-                
-                const allBtn = document.createElement('button');
-                allBtn.className = 'filter-button all-button selected';
-                allBtn.textContent = 'すべて';
-                labelDiv.appendChild(allBtn);
-                section.appendChild(labelDiv);
-
-                const optionsDiv = document.createElement('div');
-                optionsDiv.className = 'filter-options';
-                section.appendChild(optionsDiv);
-
-                const optionButtons = [];
-                const values = config.values || Array.from({ length: config.count }, (_, i) => i + 1);
-                values.forEach(val => {
-                    const btn = document.createElement('button');
-                    btn.className = 'filter-button selected';
-                    btn.dataset.key = key; btn.dataset.value = val;
-                    btn.innerHTML = `<img src="/static/icon/${config.prefix}${val}.png">`;
-                    optionsDiv.appendChild(btn);
-                    optionButtons.push(btn);
-                });
-
-                optionButtons.forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        btn.classList.toggle('selected');
-                        applyFilters();
-                    });
-                });
-
-                allBtn.addEventListener('click', () => {
-                    const isAllSelected = optionButtons.every(b => b.classList.contains('selected'));
-                    optionButtons.forEach(b => b.classList.toggle('selected', !isAllSelected));
-                    applyFilters();
-                });
-            }
-        }
-
-        function applyFilters() {
-            activeFilters = {};
-            document.querySelectorAll('.filter-button.selected:not(.all-button)').forEach(btn => {
-                const key = btn.dataset.key;
-                const value = btn.dataset.value;
-                if (!activeFilters[key]) activeFilters[key] = new Set();
-                activeFilters[key].add(value);
-            });
-            updateAlienGrid();
-        }
-
-        function updateFilterUIState() {
-            let isAnyFilterActive = false;
-            document.querySelectorAll('.filter-section').forEach(section => {
-                const allBtn = section.querySelector('.all-button');
-                if (!allBtn) return;
-                const optionButtons = Array.from(section.querySelectorAll('.filter-button:not(.all-button)'));
-                const selectedCount = section.querySelectorAll('.filter-button.selected:not(.all-button)').length;
-                
-                const isAllSelected = selectedCount === optionButtons.length;
-                allBtn.classList.toggle('selected', isAllSelected);
-                if (!isAllSelected) { isAnyFilterActive = true; }
-            });
-            filterButton.classList.toggle('filtered', isAnyFilterActive);
-        }
-
-        // --------------------------------------------------------------------------
-        //  イベントリスナー設定
-        // --------------------------------------------------------------------------
-        
-        partyDisplay.addEventListener('click', function(event) {
-            const skillBlock = event.target.closest('.skill-block');
-            const skillsArea = event.target.closest('.slot-skills-area');
-
-            if (skillBlock) {
-                const parentArea = skillBlock.parentElement;
-                const partySlot = skillBlock.closest('.party-slot');
-                const displayArea = partySlot.querySelector('.active-skill-display');
-                const isActive = skillBlock.classList.contains('is-active');
-
-                parentArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active'));
-                parentArea.classList.remove('skills-area-detail-view');
-                if (displayArea) displayArea.innerHTML = '';
-
-                if (!isActive) {
-                    parentArea.classList.add('skills-area-detail-view');
-                    skillBlock.classList.add('is-active');
-                    const skillLabelHtml = skillBlock.querySelector('.skill-label').outerHTML;
-                    const skillItemHtml = skillBlock.querySelector('.skill-item').outerHTML;
-                    if (displayArea) displayArea.innerHTML = skillLabelHtml + skillItemHtml;
-                }
-            } else if (skillsArea && skillsArea.classList.contains('skills-area-detail-view')) {
-                const partySlot = skillsArea.closest('.party-slot');
-                const displayArea = partySlot.querySelector('.active-skill-display');
-                skillsArea.classList.remove('skills-area-detail-view');
-                skillsArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active'));
-                if (displayArea) displayArea.innerHTML = '';
-            }
-        });
-
-        toggleButton.addEventListener('click', () => {
-            drawer.classList.toggle('open');
-            toggleButton.textContent = drawer.classList.contains('open') ? '◀' : '▶';
-        });
-
-        mainContainer.addEventListener('click', () => {
-            if (drawer.classList.contains('open')) {
-                drawer.classList.remove('open');
-                toggleButton.textContent = '▶';
-            }
-        });
-
-        alienGrid.addEventListener('click', (event) => {
-            const card = event.target.closest('.alien-card');
-            if (!card) return;
-            event.stopPropagation();
-            const alienData = allAliensData.find(a => a.id == card.dataset.id);
-            if (!alienData) return;
-            
-            if (card.classList.contains('selected')) {
-                removeFromParty(card.dataset.id);
-            } else {
-                addToParty(alienData.dataset);
-            }
-        });
-
+        // --- イベントリスナー設定 ---
+        partyDisplay.addEventListener('click', function(event) { const skillBlock = event.target.closest('.skill-block'); const skillsArea = event.target.closest('.slot-skills-area'); if (skillBlock) { const parentArea = skillBlock.parentElement; const partySlot = skillBlock.closest('.party-slot'); const displayArea = partySlot.querySelector('.active-skill-display'); const isActive = skillBlock.classList.contains('is-active'); parentArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active')); parentArea.classList.remove('skills-area-detail-view'); if (displayArea) displayArea.innerHTML = ''; if (!isActive) { parentArea.classList.add('skills-area-detail-view'); skillBlock.classList.add('is-active'); const skillLabelHtml = skillBlock.querySelector('.skill-label').outerHTML; const skillItemHtml = skillBlock.querySelector('.skill-item').outerHTML; if (displayArea) displayArea.innerHTML = skillLabelHtml + skillItemHtml; } } else if (skillsArea && skillsArea.classList.contains('skills-area-detail-view')) { const partySlot = skillsArea.closest('.party-slot'); const displayArea = partySlot.querySelector('.active-skill-display'); skillsArea.classList.remove('skills-area-detail-view'); skillsArea.querySelectorAll('.skill-block').forEach(el => el.classList.remove('is-active')); if (displayArea) displayArea.innerHTML = ''; } });
+        toggleButton.addEventListener('click', () => { drawer.classList.toggle('open'); toggleButton.textContent = drawer.classList.contains('open') ? '◀' : '▶'; });
+        mainContainer.addEventListener('click', () => { if (drawer.classList.contains('open')) { drawer.classList.remove('open'); toggleButton.textContent = '▶'; } });
+        alienGrid.addEventListener('click', (event) => { const card = event.target.closest('.alien-card'); if (!card) return; event.stopPropagation(); const alienData = allAliensData.find(a => a.id == card.dataset.id); if (!alienData) return; if (card.classList.contains('selected')) { removeFromParty(card.dataset.id); } else { addToParty(alienData.dataset); } });
         filterMenu.addEventListener('click', (e) => { e.stopPropagation(); });
-        filterButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isOpening = filterMenu.style.display !== 'block';
-            filterMenu.style.display = isOpening ? 'block' : 'none';
-            e.currentTarget.textContent = isOpening ? '絞り込み▲' : '絞り込み▼';
-        });        sortButton.addEventListener('click', (e) => { e.stopPropagation(); sortMenu.style.display = sortMenu.style.display === 'block' ? 'none' : 'block'; });
-
-        sortMenu.addEventListener('click', (e) => {
-            const button = e.target.closest('.control-button');
-            if (button) {
-                currentSort.key = button.dataset.sortKey;
-                sortButton.textContent = button.textContent;
-                updateAlienGrid();
-                sortMenu.style.display = 'none';
-            }
-        });
-
-        sortOrderButton.addEventListener('click', () => {
-            currentSort.order = currentSort.order === 'desc' ? 'asc' : 'desc';
-            sortOrderButton.textContent = currentSort.order === 'desc' ? '降順' : '昇順';
-            updateAlienGrid();
-        });
-
-        document.body.addEventListener('click', () => {
-            if (sortMenu.style.display === 'block') { sortMenu.style.display = 'none'; }
-        });
+        filterButton.addEventListener('click', (e) => { e.stopPropagation(); const isOpening = filterMenu.style.display !== 'block'; filterMenu.style.display = isOpening ? 'block' : 'none'; e.currentTarget.textContent = isOpening ? '絞り込み▲' : '絞り込み▼'; });
+        sortButton.addEventListener('click', (e) => { e.stopPropagation(); sortMenu.style.display = sortMenu.style.display === 'block' ? 'none' : 'block'; });
+        sortMenu.addEventListener('click', (e) => { const button = e.target.closest('.control-button'); if (button) { currentSort.key = button.dataset.sortKey; sortButton.textContent = button.textContent; updateAlienGrid(); sortMenu.style.display = 'none'; } });
+        sortOrderButton.addEventListener('click', () => { currentSort.order = currentSort.order === 'desc' ? 'asc' : 'desc'; sortOrderButton.textContent = currentSort.order === 'desc' ? '降順' : '昇順'; updateAlienGrid(); });
+        document.body.addEventListener('click', () => { if (sortMenu.style.display === 'block') { sortMenu.style.display = 'none'; } });
+        
+        // --- 使い方モーダル関連 ---
+        const helpButton = document.getElementById('help-button');
+        const helpModal = document.getElementById('help-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        helpButton.addEventListener('click', () => { helpModal.style.display = 'flex'; });
+        closeModalButton.addEventListener('click', () => { helpModal.style.display = 'none'; });
+        helpModal.addEventListener('click', (e) => { if (e.target === helpModal) { helpModal.style.display = 'none'; } });
 
         // --- 初期化処理 ---
         createFilterButtons();
