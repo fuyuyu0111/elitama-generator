@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>エリたま バフデータ作成ツール Ver. 4.1</title>
+    <style>
+        :root {
+            --dark-bg: #1e2a38; --medium-bg: #2a3a4a; --light-bg: #3a4a5a;
+            --text-color: #e1e1e1; --accent-color: #00ffc8; --border-color: #5a6a7a;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: var(--dark-bg); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; font-size: 14px; }
+        .main-layout { display: flex; flex-grow: 1; overflow: hidden; }
+        .sidebar { background-color: var(--medium-bg); padding: 15px; display: flex; flex-direction: column; width: 240px; border-right: 1px solid var(--border-color); }
+        .main-content { padding: 25px; overflow-y: auto; flex-grow: 1; }
+        .bottom-panel { background-color: var(--dark-bg); border-top: 2px solid var(--border-color); height: 200px; flex-shrink: 0; padding: 10px; overflow-y: auto; }
+        h1, h2, h3 { color: var(--accent-color); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-top: 0; }
+        h4 { margin: 10px 0 5px 0; }
+        button { padding: 8px 12px; border-radius: 4px; border: none; cursor: pointer; background-color: var(--light-bg); color: #fff; font-size: 12px; transition: background-color 0.2s; }
+        button:hover { filter: brightness(1.2); }
+        .loader { text-align: center; padding: 50px; font-size: 1.5em; color: var(--accent-color); }
+
+        /* Alien List (Bottom) */
+        .alien-list-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; }
+        .alien-icon { cursor: pointer; text-align: center; position: relative; }
+        .alien-icon img { width: 100%; max-width: 80px; border-radius: 8px; border: 3px solid transparent; }
+        .alien-icon.active img { border-color: var(--accent-color); box-shadow: 0 0 10px var(--accent-color); }
+        .alien-icon .status-marker { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--medium-bg); font-weight: bold; color: white; display: flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; }
+        .alien-icon .status-marker.complete::after { content: '✓'; background-color: #28a745; }
+        .alien-icon .status-marker.unknown::after { content: '?'; background-color: #ffc107; color: black; }
+        .alien-icon span { font-size: 10px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+        
+        /* Buff Name List */
+        .buff-name-list { list-style: none; padding: 0; font-size: 12px; max-height: 100%; overflow-y: auto; }
+        .buff-name-list li:nth-child(odd) { background-color: var(--light-bg); }
+
+        /* Editor */
+        .skill-card { background-color: var(--medium-bg); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .skill-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; }
+        .skill-text { background-color: var(--dark-bg); padding: 10px; border-radius: 4px; margin: 10px 0; line-height: 1.6; }
+        .buff-header { display: grid; grid-template-columns: 30px 1fr 130px 60px 80px 100px 110px 50px 50px 40px; gap: 8px; font-size: 10px; color: #aaa; margin-bottom: 5px; padding-left: 10px; }
+        .buff-row { display: grid; grid-template-columns: 30px 1fr 130px 60px 80px 100px 110px 50px 50px 40px; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+        input, select { width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-color); background-color: var(--dark-bg); color: #fff; box-sizing: border-box; }
+        .add-buff { background-color: #28a745; }
+        .add-debuff { background-color: #007bff; }
+        .delete-buff { background-color: #dc3545; }
+        .no-buff { background-color: #ffc107; color: #000; }
+        #save-btn { width: 100%; padding: 15px; font-size: 1.2em; background-color: #0d6efd; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="main-layout">
+        <aside class="sidebar">
+            <h3>登録済み効果名</h3>
+            <ul id="buff-name-list" class="buff-name-list"></ul>
+        </aside>
+        <main class="main-content" id="main-content">
+            <div id="editor-area"><h1>データ作成ツール</h1><p>下のリストからエイリアンを選択してください。</p></div>
+        </main>
+    </div>
+    <footer class="bottom-panel">
+        <h3>エイリアンリスト</h3>
+        <div class="alien-list-container" id="alien-list">
+            {% for alien in all_aliens %}
+            <div class="alien-icon" id="alien-icon-{{ alien.id }}" data-id="{{ alien.id }}" onclick="loadAlien('{{ alien.id }}')">
+                <img src=".../alien_egg/static/images/{{ alien.id }}.png" alt="{{ alien.name }}" onerror="this.style.display='none'">
+                <span title="{{ alien.name }}">{{ alien.name }}</span>
+                <div class="status-marker {{ alien.status }}"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </footer>
+    <datalist id="buff-name-datalist"></datalist>
+
+    <script>
+const TARGET_OPTIONS = {
+    "SELF": "自分", "ALL_ALLIES": "味方全員", "ALLIES_EXCEPT_SELF": "自分以外",
+    "ATTR_1": "動物属性", "ATTR_2": "昆虫属性", "ATTR_3": "機械属性", "ATTR_4": "ナゾ属性",
+    "AFFIL_1": "宇宙連合", "AFFIL_2": "星間帝国", "AFFIL_3": "恒星連邦", "AFFIL_4": "unknown", "AFFIL_5": "銀河同盟",
+    "AREA_1": "攻撃範囲:たんたい", "AREA_2": "攻撃範囲:はんい",
+    "RANGE_1": "攻撃距離:ちかい", "RANGE_2": "攻撃距離:ふつう", "RANGE_3": "距離:とおい"
+};
+let currentAlienId = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await updateBuffNameList();
+    const firstIncomplete = document.querySelector('.alien-icon:not(:has(.status-marker.complete))');
+    if (firstIncomplete) {
+        loadAlien(firstIncomplete.dataset.id);
+    }
+});
+
+async function loadAlien(alienId) {
+    if (currentAlienId === alienId) return;
+    currentAlienId = alienId;
+
+    document.querySelectorAll('.alien-icon.active').forEach(el => el.classList.remove('active'));
+    document.getElementById(`alien-icon-${alienId}`).classList.add('active');
+
+    const editor = document.getElementById('editor-area');
+    editor.innerHTML = `<div class="loader">エイリアン情報とAIの提案を読み込み中...</div>`;
+
+    const response = await fetch(`/get-alien-data/${alienId}`);
+    const alienData = await response.json();
+
+    editor.innerHTML = `<h2>${alienData.name} (ID: ${alienData.id})</h2>`;
+
+    for (let i = 1; i <= 3; i++) {
+        const skillText = alienData[`skill_text${i}`];
+        if (!skillText) continue;
+
+        const card = document.createElement('div');
+        card.id = `skill-card-${i}`;
+        card.className = 'skill-card';
+        card.innerHTML = `
+            <div class="skill-header">
+                <h4>個性${i}: ${alienData[`skill_no${i}`]}</h4>
+                <label><input type="checkbox" class="skill-consumes-slot"> 個性名自体が枠を消費</label>
+            </div>
+            <div class="skill-text">${skillText.replace(/\n/g, '<br>')}</div>
+            <div class="buff-header">
+                <span>Grp</span><span>効果名</span><span>対象</span><span>効果量</span><span>タイプ</span><span>持続(s)</span><span>発動条件</span><span>覚醒</span><span>枠</span><span></span>
+            </div>
+            <div class="buff-editor" id="buff-editor-${i}"></div>
+            <button class="add-buff" onclick="addBuffRow(${i}, {}, false)">＋ バフ追加</button>
+            <button class="add-debuff" onclick="addBuffRow(${i}, {}, true)">＋ デバフ追加</button>
+            <button class="no-buff" onclick="setNoBuffs(${i})">効果なし</button>
+        `;
+        editor.appendChild(card);
+        renderBuffEditor(i, alienData[`skill_${i}_data`]);
+    }
+    editor.innerHTML += `<button id="save-btn" onclick="saveLabels()">このエイリアンのデータを保存</button>`;
+}
+
+function renderBuffEditor(skillIndex, effects) {
+    const editor = document.getElementById(`buff-editor-${skillIndex}`);
+    editor.innerHTML = '';
+    if (effects && effects.length > 0) {
+        effects.forEach(effect => addBuffRow(skillIndex, effect, effect.is_debuff));
+    } else if (effects) { // effectsが空の配列[]の場合
+            editor.innerHTML = '<p>（効果なし）</p>';
+    }
+}
+
+function addBuffRow(skillIndex, effect = {}, isDebuff = false) {
+    const editor = document.getElementById(`buff-editor-${skillIndex}`);
+    const noBuffP = editor.querySelector('p');
+    if (noBuffP) noBuffP.remove();
+
+    const row = document.createElement('div');
+    row.className = 'buff-row';
+    row.dataset.isDebuff = isDebuff;
+
+    let options = '';
+    for (const [value, text] of Object.entries(TARGET_OPTIONS)) {
+        options += `<option value="${value}" ${effect.target === value ? 'selected' : ''}>${text}</option>`;
+    }
+
+    row.innerHTML = `
+        <input type="number" class="buff-group" placeholder="Gr" value="${effect.group_id || ''}" style="width: 40px;">
+        <input type="text" class="buff-name" placeholder="${isDebuff ? 'デバフ名' : 'バフ名'}" value="${effect.name || ''}" list="buff-name-datalist">
+        <select class="buff-target">${options}</select>
+        <input type="number" class="buff-value" placeholder="量" value="${effect.value || 0}">
+        <select class="buff-value-type">
+            <option value="PERCENT" ${effect.value_type === 'PERCENT' ? 'selected' : ''}>%</option>
+            <option value="FLAT" ${effect.value_type === 'FLAT' ? 'selected' : ''}>Flat</option>
+            <option value="SECONDS" ${effect.value_type === 'SECONDS' ? 'selected' : ''}>Sec</option>
+            <option value="UNKNOWN" ${!effect.value_type || effect.value_type === 'UNKNOWN' ? 'selected' : ''}>?</option>
+        </select>
+        <input type="number" class="buff-duration" placeholder="秒" value="${effect.duration || 0}">
+        <input type="text" class="buff-condition" placeholder="条件" value="${effect.condition || 'PERMANENT'}">
+        <input type="checkbox" class="buff-awakening" ${effect.awakening_required ? 'checked' : ''} style="transform: scale(1.5);">
+        <select class="buff-slot">
+            <option value="true" ${effect.occupies_slot === true ? 'selected' : ''}>Y</option>
+            <option value="false" ${effect.occupies_slot === false ? 'selected' : ''}>N</option>
+            <option value="null" ${effect.occupies_slot === null || effect.occupies_slot === undefined ? 'selected' : ''}>?</option>
+        </select>
+        <button class="delete-buff" onclick="this.parentElement.remove()">×</button>
+    `;
+    editor.appendChild(row);
+}
+
+function setNoBuffs(skillIndex) {
+    document.getElementById(`buff-editor-${skillIndex}`).innerHTML = '<p>（効果なしとしてマークしました）</p>';
+}
+
+async function saveLabels() {
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+    const dataToSave = [];
+
+    for (let i = 1; i <= 3; i++) {
+        const card = document.getElementById(`skill-card-${i}`);
+        if (!card) continue;
+        
+        const output = [];
+        let hasUnknownSlot = false;
+
+        if (!card.querySelector('p')) {
+            card.querySelectorAll('.buff-row').forEach(row => {
+                const name = row.querySelector('.buff-name').value;
+                if(name) {
+                    const slotValue = row.querySelector('.buff-slot').value;
+                    if (slotValue === 'null') hasUnknownSlot = true;
+                    output.push({
+                        group_id: parseInt(row.querySelector('.buff-group').value) || 0,
+                        name: name,
+                        target: row.querySelector('.buff-target').value,
+                        value: parseFloat(row.querySelector('.buff-value').value) || 0,
+                        value_type: row.querySelector('.buff-value-type').value,
+                        duration: parseInt(row.querySelector('.buff-duration').value) || 0,
+                        condition: row.querySelector('.buff-condition').value || 'PERMANENT',
+                        occupies_slot: slotValue === 'null' ? null : (slotValue === 'true'),
+                        is_debuff: row.dataset.isDebuff === 'true',
+                        awakening_required: row.querySelector('.buff-awakening').checked
+                    });
+                }
+            });
+        }
+        
+        dataToSave.push({ 
+            skill_id: `${currentAlienId}_${i}`, 
+            text_input: card.querySelector('.skill-text').textContent.trim(), 
+            output: output,
+            status: hasUnknownSlot ? 'unknown' : 'complete'
+        });
+    }
+
+    await fetch('/save-labels', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({data: dataToSave})
+    });
+    
+    // アイコンのマーカーを更新
+    const icon = document.getElementById(`alien-icon-${currentAlienId}`);
+    let newStatus = 'complete';
+    if (dataToSave.some(d => d.status === 'unknown')) newStatus = 'unknown';
+    
+    let marker = icon.querySelector('.status-marker');
+    if (!marker) {
+        marker = document.createElement('div');
+        icon.appendChild(marker);
+    }
+    marker.className = `status-marker ${newStatus}`;
+
+    await updateBuffNameList();
+    btn.textContent = '保存完了！';
+    setTimeout(() => {
+        const nextIncomplete = document.querySelector('.alien-icon:not(:has(.status-marker.complete))');
+        if (nextIncomplete) {
+            loadAlien(nextIncomplete.dataset.id);
+        } else {
+            document.getElementById('editor-area').innerHTML = '<h2>全ての処理が完了しました！</h2>';
+        }
+    }, 1000);
+}
+
+async function updateBuffNameList() {
+    const res = await fetch('/get-unique-buff-names');
+    const names = await res.json();
+    const list = document.getElementById('buff-name-list');
+    const datalist = document.getElementById('buff-name-datalist');
+    list.innerHTML = '';
+    datalist.innerHTML = '';
+    names.forEach(name => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        list.appendChild(li);
+        const option = document.createElement('option');
+        option.value = name;
+        datalist.appendChild(option);
+    });
+}</script>
+</body>
+</html>
