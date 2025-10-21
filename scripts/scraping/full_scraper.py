@@ -120,11 +120,8 @@ def scrape_alien_data(session, url):
         if not detail_section:
             raise ValueError("ID 'alien-detail' を持つセクションが見つかりません。")
 
-        # 基本情報の抽出 (warningが出ないように string= に修正)
-        id_tag = detail_section.find('p', string=re.compile(r'図鑑No.'))
-        if id_tag:
-            data['id'] = id_tag.text.replace('図鑑No.', '').strip()
-        
+        # 基本情報の抽出 (セレクタを少し安定なものに修正)
+        data['id'] = detail_section.find('p', text=re.compile(r'図鑑No.')).text.replace('図鑑No.', '').strip()
         data['name'] = detail_section.find('h1').text.strip()
         
         attr_p = detail_section.find(lambda tag: tag.name == 'p' and '属性' in tag.get_text())
@@ -133,83 +130,71 @@ def scrape_alien_data(session, url):
         affil_p = detail_section.find(lambda tag: tag.name == 'p' and '所属' in tag.get_text())
         data['affiliation'] = get_image_filename(affil_p.find('img'))
 
-        # data-detail-common テーブルを一度だけ取得
-        all_tables = detail_section.find_all('table', class_='data-detail-common')
+        common_table = detail_section.find('table', class_='data-detail-common')
+        kyori_th = common_table.find('th', text='きょり')
+        data['attack_range'] = get_image_filename(kyori_th.find_next_sibling('td').find('img'))
         
-        # 攻撃範囲などの情報を取得
-        common_table = all_tables[0] if all_tables else None
-        if common_table:
-            kyori_th = common_table.find('th', string='きょり')
-            if kyori_th:
-                data['attack_range'] = get_image_filename(kyori_th.find_next_sibling('td').find('img'))
-            
-            hani_th = common_table.find('th', string='はんい')
-            if hani_th:
-                data['attack_area'] = get_image_filename(hani_th.find_next_sibling('td').find('img'))
-            
-            data['role'] = None
-            data['types'] = []
-            type_th = common_table.find('th', string='タイプ')
-            if type_th and type_th.find_next_sibling('td'):
-                all_type_icons = type_th.find_next_sibling('td').find_all('img')
-                role_keys = {'icn_equ_res_5_41.png', 'icn_equ_res_5_42.png', 'icn_equ_res_5_43.png', 'icn_equ_res_5_44.png'}
-                for img in all_type_icons:
-                    filename = get_image_filename(img)
-                    if filename in role_keys:
-                        data['role'] = filename
-                    else:
-                        data['types'].append(filename)
+        hani_th = common_table.find('th', text='はんい')
+        data['attack_area'] = get_image_filename(hani_th.find_next_sibling('td').find('img'))
+        
+        # ★★★ ここから role と types を分離するロジック ★★★
+        data['role'] = None
+        data['types'] = [] # typesはファイル名のリストとして初期化
 
-        # 個性と特技の情報を取得
+        type_th = common_table.find('th', text='タイプ')
+        if type_th and type_th.find_next_sibling('td'):
+            all_type_icons = type_th.find_next_sibling('td').find_all('img')
+            
+            role_keys = {
+                'icn_equ_res_5_41.png', 'icn_equ_res_5_42.png',
+                'icn_equ_res_5_43.png', 'icn_equ_res_5_44.png'
+            }
+            
+            for img in all_type_icons:
+                filename = get_image_filename(img)
+                if filename in role_keys:
+                    # ファイル名がロールのキーと一致した場合
+                    data['role'] = filename
+                else:
+                    # それ以外はタイプとして扱う
+                    data['types'].append(filename)
+        # ★★★ ここまで ★★★
+
+        # 個性はリストとして取得 (変更なし)
         data['skills'] = []
-        data['S_Skill'] = None
-        data['S_Skill_text'] = None
-        
         skill_table = None
-        for table in all_tables:
-            # <th>に"個性"か"特技"が含まれるテーブルを探す
-            if table.find('th', string=re.compile(r'(個性|特技)')):
+        for table in detail_section.find_all('table', class_='data-detail-common'):
+            if table.find('th', text=re.compile(r'個性\d')):
                 skill_table = table
                 break
-
+        
         if skill_table:
-            # 個性の取得
             for i in range(1, 4):
-                skill_th = skill_table.find('th', string=f'個性{i}')
+                skill_th = skill_table.find('th', text=f'個性{i}')
                 if skill_th and skill_th.find_next_sibling('td'):
                     skill_td = skill_th.find_next_sibling('td')
-                    skill_name_tag = skill_td.find('a')
-                    skill_effect_container = skill_name_tag.find_parent('p').find_next_sibling('p') if skill_name_tag else None
-                    if skill_name_tag and skill_effect_container:
-                        skill_name = skill_name_tag.text.strip()
+                    skill_name = skill_td.find('a').text.strip()
+                    
+                    skill_effect_container = skill_td.find('a').find_parent('p').find_next_sibling('p')
+                    if skill_effect_container:
                         raw_text = skill_effect_container.get_text(separator='\n', strip=True)
                         skill_effect = raw_text.replace('\n＜', '＜')
                         data['skills'].append({'name': skill_name, 'text': skill_effect})
-            
-            # 特技の取得
-            s_skill_th = skill_table.find('th', string='特技')
-            if s_skill_th and s_skill_th.find_next_sibling('td'):
-                s_skill_td = s_skill_th.find_next_sibling('td')
-                s_skill_name_tag = s_skill_td.find('span', class_='bold')
-                if s_skill_name_tag:
-                    data['S_Skill'] = s_skill_name_tag.text.strip()
-                    s_skill_text_tag = s_skill_name_tag.find_parent('p').find_next_sibling('p')
-                    if s_skill_text_tag:
-                        data['S_Skill_text'] = s_skill_text_tag.text.strip()
-
+        
         return data
 
     except requests.exceptions.RequestException as e:
-        print(f"  -> 詳細ページの取得に失敗: {url}, {e}")
+        print(f"  -> 詳細ページの取得に失敗: {url}, {e}")
         return None
     except Exception as e:
-        print(f"  -> 解析中に予期せぬエラー: {url}, {e}")
+        print(f"  -> 解析中に予期せぬエラー: {url}, {e}")
         return None
     
 # --- データベース書き込み関数 ---
 def upsert_alien_to_db(conn, data):
     """スクレイピングしたデータをDBに書き込む (存在すれば更新、なければ追加)"""
     
+    # データベースの列名とデータ型に合わせて値を準備
     db_data = {
         'id': int(data['id']) if data.get('id') else None,
         'name': data.get('name'),
@@ -217,15 +202,16 @@ def upsert_alien_to_db(conn, data):
         'affiliation': CONVERSION_MAP.get(data.get('affiliation')),
         'attack_range': CONVERSION_MAP.get(data.get('attack_range')),
         'attack_area': CONVERSION_MAP.get(data.get('attack_area')),
+        # ★★★ roleを追加 ★★★
         'role': int(CONVERSION_MAP.get(data.get('role'))) if data.get('role') else None,
-        'S_Skill': data.get('S_Skill'),
-        'S_Skill_text': data.get('S_Skill_text'),
     }
     
+    # タイプをtype_1, type_2...に割り振り
     types = [CONVERSION_MAP.get(fname) for fname in data.get('types', []) if fname in CONVERSION_MAP]
     for i in range(4):
         db_data[f'type_{i+1}'] = types[i] if i < len(types) else None
         
+    # 個性をskill_no1, skill_text1...に割り振り
     skills = data.get('skills', [])
     for i in range(3):
         if i < len(skills):
@@ -235,11 +221,11 @@ def upsert_alien_to_db(conn, data):
             db_data[f'skill_no{i+1}'] = None
             db_data[f'skill_text{i+1}'] = None
 
+    # ★★★ INSERT/UPDATE文で使う列の順番に role を追加 ★★★
     columns = [
         'id', 'name', 'attribute', 'affiliation', 'attack_range', 'attack_area',
         'type_1', 'type_2', 'type_3', 'type_4', 'role', 'skill_no1', 'skill_text1',
-        'skill_no2', 'skill_text2', 'skill_no3', 'skill_text3',
-        'S_Skill', 'S_Skill_text'
+        'skill_no2', 'skill_text2', 'skill_no3', 'skill_text3'
     ]
     values = [db_data.get(col) for col in columns]
 
@@ -248,24 +234,17 @@ def upsert_alien_to_db(conn, data):
         exists = cur.fetchone()
 
         if exists:
-            # ↓↓↓↓ 修正箇所(UPDATE) ↓↓↓↓
-            # 各列名をダブルクォーテーションで囲む
-            update_cols = [f'"{col}" = %s' for col in columns[1:]]
-            sql = f'UPDATE alien SET {", ".join(update_cols)} WHERE id = %s'
-            # ↑↑↑↑ 修正箇所(UPDATE) ↑↑↑↑
+            update_cols = [f"{col} = %s" for col in columns[1:]]
+            sql = f"UPDATE alien SET {', '.join(update_cols)} WHERE id = %s"
             update_values = values[1:] + [values[0]]
             cur.execute(sql, update_values)
-            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' のデータを更新しました。")
+            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' のデータを更新しました。")
         else:
-            # ↓↓↓↓ 修正箇所(INSERT) ↓↓↓↓
-            # 各列名をダブルクォーテーションで囲む
-            quoted_columns = f'"{ '", "'.join(columns) }"'
             placeholders = ', '.join(['%s'] * len(columns))
-            sql = f'INSERT INTO alien ({quoted_columns}) VALUES ({placeholders})'
-            # ↑↑↑↑ 修正箇所(INSERT) ↑↑↑↑
+            sql = f"INSERT INTO alien ({', '.join(columns)}) VALUES ({placeholders})"
             cur.execute(sql, values)
-            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' を新規追加しました。")
-            
+            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' を新規追加しました。")
+
 # --- メインの実行部分 ---
 if __name__ == '__main__':
     input_url = input("収集を開始したいエイリアン一覧ページのURLを貼り付けてEnterを押してください:\n> ")

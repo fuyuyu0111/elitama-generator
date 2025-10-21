@@ -2,3 +2,13 @@ __pycache__/
 *.pyc
 *.db
 *.sqlite3
+.env
+# Google Drive sync temp folders
+.tmp.drivedownload/
+.tmp.driveupload/
+
+# Custom instructions (private documentation)
+.github/copilot-instructions.md
+
+# Screenshots
+*.png
