@@ -2399,6 +2399,7 @@
     alienGrid.addEventListener('touchcancel', cancelLongPressTimer, { passive: false });
     alienGrid.addEventListener('mouseleave', cancelLongPressTimer);
     
+<<<<<<< HEAD
     // --- プレビューオーバーレイをタップで閉じる ---
     const previewOverlayElement = document.getElementById('preview-overlay');
     const previewSlotContainer = document.getElementById('preview-slot-container');
@@ -2415,6 +2416,30 @@
             closeLongPressPreview();
         }
     });
+=======
+    // --- プレビューオーバーレイ: ドロワー内のプレビュースロット外クリックで閉じる ---
+    const previewOverlayElement = document.getElementById('preview-overlay');
+    const previewSlotContainer = document.getElementById('preview-slot-container');
+    
+    // プレビュースロット内のクリックは伝播を止める
+    if (previewSlotContainer) {
+        previewSlotContainer.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    }
+
+    // ドロワー全体でプレビューを閉じる処理（高優先度でキャプチャフェーズで実行）
+    drawer.addEventListener('click', (event) => {
+        if (longPressState.active) {
+            // プレビュースロット内のクリックは無視
+            if (!event.target.closest('#preview-slot-container')) {
+                closeLongPressPreview();
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }
+    }, true); // キャプチャフェーズで実行
+>>>>>>> e899cc1f24563963bf39105639410c15353d71b6
     
     // ==========================================================================
     //  パーティ一覧表示機能
