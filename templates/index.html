@@ -1189,17 +1189,17 @@
         
         let previewParty;
         if (alreadyInParty) {
-            // 既に編成済みの場合は現在のパーティをそのまま使用
+            // 既に編成済み → そのまま5体
             previewParty = [...currentParty];
         } else {
-            // 未編成の場合は空きスロットに追加
             const emptySlotIndex = currentParty.indexOf(null);
-            previewParty = [...currentParty];
             if (emptySlotIndex !== -1) {
+                // 空きがある → 5体のまま該当スロットに配置
+                previewParty = [...currentParty];
                 previewParty[emptySlotIndex] = alienDataSet;
             } else {
-                // 満員の場合は最後に追加（仮）
-                previewParty.push(alienDataSet);
+                // 満員 → プレビュー専用で6体目を追加
+                previewParty = [...currentParty, alienDataSet];
             }
         }
 
@@ -1212,6 +1212,7 @@
         } finally {
             suppressSelectedHighlight = false;
         }
+        // 条件判定は描画済みのpreviewパーティ（最大6体）に対して通常通り実行
         checkPartyRealtime(tempPartyId);
         currentPartyId = originalCurrentPartyId;
 
@@ -1326,7 +1327,9 @@
         const partyContainer = document.getElementById(`party-container-${partyId}`);
         partyContainer.innerHTML = '';
         
-        for (let i = 0; i < 5; i++) {
+        // プレビュー専用の拡張: previewパーティは最大6体まで描画（満員時の長押し用）
+        const maxSlots = (partyId === 'preview') ? Math.min(party.length, 6) : 5;
+        for (let i = 0; i < maxSlots; i++) {
             const alienDataSet = party[i];
             const isOccupied = alienDataSet !== null;
             const alienData = isOccupied ? ALL_ALIENS[alienDataSet.id] : null;
@@ -1995,9 +1998,9 @@
     }
 
     // --- 要求判定ロジック ---
-    function checkPartyRealtime(partyId = currentPartyId) {
-        // 指定されたパーティ構成を取得
-        const party = parties[partyId];
+    function checkPartyRealtime(partyId = currentPartyId, overrideParty = null, domIndexMap = null) {
+        // 指定されたパーティ構成を取得（オーバーライドがあればそれを使用）
+        const party = overrideParty || parties[partyId];
         // 各スロットごとに判定
         party.forEach((member, slotIdx) => {
             if (!member) return;
@@ -2017,8 +2020,10 @@
                 }
                 if (alien.role) counts.f[alien.role] = (counts.f[alien.role] || 0) + 1;
             });
-            // スロット内のreq-icon-wrapperを判定
-            const slotElem = document.querySelector(`#party-container-${partyId} .party-slot[data-slot-index="${slotIdx}"]`);
+            // スロット内のreq-icon-wrapperを判定（DOMのスロットインデックスが異なる場合に対応）
+            const domIdx = Array.isArray(domIndexMap) ? domIndexMap[slotIdx] : slotIdx;
+            if (domIdx === undefined || domIdx === null || domIdx < 0) return; // マッピング対象外
+            const slotElem = document.querySelector(`#party-container-${partyId} .party-slot[data-slot-index="${domIdx}"]`);
             if (!slotElem) return;
             slotElem.querySelectorAll('.req-icon-wrapper').forEach(wrapper => {
                 const condType = wrapper.dataset.condType;
