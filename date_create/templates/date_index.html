@@ -19,15 +19,16 @@
         button:hover { filter: brightness(1.2); }
         .loader { text-align: center; padding: 50px; font-size: 1.5em; color: var(--accent-color); }
 
-        .alien-list-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; }
-        .alien-icon { cursor: pointer; text-align: center; position: relative; }
-        .alien-icon img { width: 100%; max-width: 80px; border-radius: 8px; border: 3px solid transparent; }
-        .alien-icon.active img { border-color: var(--accent-color); box-shadow: 0 0 10px var(--accent-color); }
+        .alien-list-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+        .alien-icon { cursor: pointer; text-align: center; position: relative; padding: 8px; border-radius: 4px; background-color: var(--light-bg); border: 2px solid transparent; transition: border-color 0.2s; }
+        .alien-icon:hover { border-color: var(--accent-color); }
+        .alien-icon.active { border-color: var(--accent-color); box-shadow: 0 0 10px var(--accent-color); }
         .alien-icon .status-marker { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--medium-bg); }
-        .alien-icon .status-marker.complete { background-color: #28a745; }
-        .alien-icon .status-marker.unknown { background-color: #ffc107; }
-        .alien-icon .status-marker.incomplete { background-color: #dc3545; }
-        .alien-icon span { font-size: 10px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+        .alien-icon .status-marker.verified { background-color: #28a745; }
+        .alien-icon .status-marker.partial_verified { background-color: #17a2b8; }
+        .alien-icon .status-marker.on_hold { background-color: #ffc107; }
+        .alien-icon .status-marker.unverified { background-color: #dc3545; }
+        .alien-icon span { font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
         .buff-name-list { list-style: none; padding: 0; margin: 0; font-size: 12px; max-height: calc(50% - 40px); overflow-y: auto; }
         .buff-name-list li:nth-child(odd) { background-color: var(--light-bg); }
@@ -35,8 +36,8 @@
         .skill-card { background-color: var(--medium-bg); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         .skill-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; }
         .skill-text { background-color: var(--dark-bg); padding: 10px; border-radius: 4px; margin: 10px 0; line-height: 1.6; }
-        .buff-header { display: grid; grid-template-columns: 30px 1fr 130px 70px 80px 100px 50px 50px 50px 40px; gap: 8px; font-size: 10px; color: #aaa; margin-bottom: 5px; padding-left: 10px; }
-        .buff-row { display: grid; grid-template-columns: 30px 1fr 130px 70px 80px 100px 50px 50px 50px 40px; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+        .buff-header { display: grid; grid-template-columns: 30px 150px 130px 70px 80px 100px 50px 50px 50px 120px 40px 200px 40px; gap: 6px; font-size: 10px; color: #aaa; margin-bottom: 5px; padding-left: 10px; }
+        .buff-row { display: grid; grid-template-columns: 30px 150px 130px 70px 80px 100px 50px 50px 50px 120px 40px 200px 40px; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; }
         input, select { width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-color); background-color: var(--dark-bg); color: #fff; box-sizing: border-box; }
         .buff-row input.is-debuff { background-color: rgba(0, 123, 255, 0.2); }
         .buff-row input.is-buff { background-color: rgba(220, 53, 69, 0.1); }
@@ -89,7 +90,37 @@
 </div>
         </aside>
         <main class="main-content" id="main-content">
-            <div id="editor-area"><h1>データ作成ツール</h1><p>下のリストからエイリアンを選択してください。</p></div>
+            <div style="background-color: var(--medium-bg); padding: 10px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="margin: 0; padding: 0; border: none; font-size: 1.5em;">データ作成ツール</h2>
+                </div>
+                <div id="stats-display" style="display: flex; gap: 15px; font-size: 13px;">
+                    <span style="color: #28a745;">完全検証済み: <strong id="stat-verified">-</strong></span>
+                    <span style="color: #17a2b8;">枠以外検証済み: <strong id="stat-partial-verified">-</strong></span>
+                    <span style="color: #ffc107;">保留: <strong id="stat-on-hold">-</strong></span>
+                    <span style="color: #dc3545;">未検証: <strong id="stat-unverified">-</strong></span>
+                    <span>合計: <strong id="stat-total">-</strong></span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="filter-verified" onchange="applyFilter()">
+                        完全検証済み
+                    </label>
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="filter-partial-verified" onchange="applyFilter()">
+                        枠以外検証済み
+                    </label>
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="filter-on-hold" onchange="applyFilter()">
+                        保留
+                    </label>
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="filter-unverified" onchange="applyFilter()">
+                        未検証
+                    </label>
+                </div>
+            </div>
+            <div id="editor-area"><p>下のリストからエイリアンを選択してください。</p></div>
         </main>
     </div>
     <footer class="bottom-panel">
@@ -97,7 +128,6 @@
         <div class="alien-list-container" id="alien-list">
             {% for alien in all_aliens %}
             <div class="alien-icon" id="alien-icon-{{ alien.id }}" data-id="{{ alien.id }}" onclick="loadAlien('{{ alien.id }}')">
-                <img src="/static/images/{{ alien.id }}.png" alt="{{ alien.name }}" onerror="this.style.display='none'">
                 <span title="{{ alien.name }}">{{ alien.name }}</span>
                 <div class="status-marker {{ alien.status }}"></div>
             </div>
@@ -107,6 +137,10 @@
     <datalist id="buff-name-datalist"></datalist>
 
     <script>
+// バックエンドから渡されたデータをJavaScript変数に格納
+const ALL_ALIENS_DATA = {{ all_aliens | tojson | safe }};
+const ALL_SKILLS_DATA = {{ all_skills | tojson | safe }};
+
 const BUFF_TARGET_OPTIONS = {
     "SELF": "自分",
     "ALL_ALLIES": "味方全員",
@@ -124,15 +158,61 @@ const DEBUFF_TARGET_OPTIONS = {
     "AREA_1": "攻撃範囲:たんたい", "AREA_2": "攻撃範囲:はんい",
     "RANGE_1": "攻撃距離:ちかい", "RANGE_2": "攻撃距離:ふつう", "RANGE_3": "距離:とおい"
 };
+
 let currentAlienId = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     await updateBuffNameList();
-    const firstIncomplete = document.querySelector('.alien-icon .status-marker.incomplete, .alien-icon .status-marker.unknown');
-    if (firstIncomplete) {
-        loadAlien(firstIncomplete.closest('.alien-icon').dataset.id);
+    await updateStats();
+    const firstUnverified = document.querySelector('.alien-icon .status-marker.unverified');
+    if (firstUnverified) {
+        loadAlien(firstUnverified.closest('.alien-icon').dataset.id);
     }
 });
+
+async function updateStats() {
+    try {
+        const response = await fetch('/get-stats');
+        const stats = await response.json();
+        
+        document.getElementById('stat-verified').textContent = stats.verified || 0;
+        document.getElementById('stat-partial-verified').textContent = stats.partial_verified || 0;
+        document.getElementById('stat-on-hold').textContent = stats.on_hold || 0;
+        document.getElementById('stat-unverified').textContent = stats.unverified || 0;
+        document.getElementById('stat-total').textContent = stats.total || 0;
+    } catch (error) {
+        console.error('統計情報の取得に失敗:', error);
+    }
+}
+
+function applyFilter() {
+    const filterUnverified = document.getElementById('filter-unverified').checked;
+    const filterOnHold = document.getElementById('filter-on-hold').checked;
+    const filterVerified = document.getElementById('filter-verified').checked;
+    const filterPartialVerified = document.getElementById('filter-partial-verified').checked;
+    
+    // フィルターが全てoffの場合は全て表示
+    if (!filterUnverified && !filterOnHold && !filterVerified && !filterPartialVerified) {
+        document.querySelectorAll('.alien-icon').forEach(el => el.style.display = '');
+        return;
+    }
+    
+    // フィルター適用
+    document.querySelectorAll('.alien-icon').forEach(el => {
+        const marker = el.querySelector('.status-marker');
+        const isUnverified = marker.classList.contains('unverified');
+        const isOnHold = marker.classList.contains('on_hold');
+        const isVerified = marker.classList.contains('verified');
+        const isPartialVerified = marker.classList.contains('partial_verified');
+        
+        const shouldShow = (filterUnverified && isUnverified) || 
+                          (filterOnHold && isOnHold) || 
+                          (filterVerified && isVerified) ||
+                          (filterPartialVerified && isPartialVerified);
+        
+        el.style.display = shouldShow ? '' : 'none';
+    });
+}
 
 async function loadAlien(alienId) {
     // 既に選択中のIDと同じ場合は何もしない
@@ -145,18 +225,19 @@ async function loadAlien(alienId) {
     const editor = document.getElementById('editor-area');
     editor.innerHTML = `<div class="loader">エイリアン情報を読み込み中...</div>`;
 
-    // --- ▼▼▼ 修正箇所：非同期処理の競合を防止するチェックを追加 ▼▼▼ ---
     try {
-        const response = await fetch(`/get-alien-data/${alienId}`);
-
-        // データ取得後に、現在選択されているIDがこの関数の開始時のIDと一致するか確認
-        // 一致しない場合、ユーザーは既に別のエイリアンを選択しているため、画面の描画を中断する
-        if (currentAlienId !== alienId) {
-            return; 
+        // フロントエンドでデータを直接取得（APIコール不要）
+        const alienData = ALL_ALIENS_DATA.find(a => a.id == alienId);
+        if (!alienData) {
+            editor.innerHTML = '<p>エラー: エイリアンが見つかりません</p>';
+            return;
         }
-
-        const alienData = await response.json();
-    // --- ▲▲▲ 修正箇所 ▲▲▲ ---
+        
+        // スキルデータを取得
+        const skills = ALL_SKILLS_DATA[alienId] || {1: [], 2: [], 3: []};
+        for (let i = 1; i <= 3; i++) {
+            alienData[`skill_${i}_data`] = skills[i] || [];
+        }
 
         editor.innerHTML = `<h2>${alienData.name} (ID: ${alienData.id})</h2>`;
 
@@ -174,7 +255,7 @@ async function loadAlien(alienId) {
                 </div>
                 <div class="skill-text">${skillText.replace(/\n/g, '<br>')}</div>
                 <div class="buff-header">
-                    <span>Grp</span><span>効果名</span><span>対象</span><span>効果量</span><span>単位</span><span>持続(s)</span><span>確率(%)</span><span>覚醒</span><span>枠</span><span>切替</span><span></span>
+                    <span>Grp</span><span>効果名</span><span>対象</span><span>効果量</span><span>単位</span><span>持続(s)</span><span>確率(%)</span><span>覚醒</span><span>枠</span><span>発動</span><span>要</span><span>要求</span><span></span>
                 </div>
                 <div class="buff-editor" id="buff-editor-${i}"></div>
                 <button class="add-buff" onclick="addBuffRow(${i}, {}, false)">＋ バフ追加</button>
@@ -184,7 +265,12 @@ async function loadAlien(alienId) {
             editor.appendChild(card);
             renderBuffEditor(i, alienData[`skill_${i}_data`]);
         }
-        editor.innerHTML += `<button id="save-btn" onclick="saveLabels()">このエイリアンのデータを保存</button>`;
+        editor.innerHTML += `
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="save-btn" onclick="saveLabels()" style="flex: 1; background-color: #0d6efd;">このエイリアンのデータを保存</button>
+                <button onclick="holdAlien()" style="padding: 15px 30px; font-size: 1.2em; background-color: #ffc107; color: #000;">保留（後で確認）</button>
+            </div>
+        `;
 
     } catch (error) {
         console.error("エイリアンデータの読み込み中にエラーが発生しました:", error);
@@ -239,13 +325,208 @@ function addBuffRow(skillIndex, effect = {}, isDebuff = false) {
             <option value="false" ${effect.occupies_slot === false ? 'selected' : ''}>N</option>
             <option value="null" ${effect.occupies_slot === null || effect.occupies_slot === undefined ? 'selected' : ''}>?</option>
         </select>
-        <button class="toggle-buff" onclick="toggleBuffDebuff(this)">切替</button>
+        <select class="buff-timing">
+            <option value="BATTLE_START" ${effect.trigger_timing === 'BATTLE_START' ? 'selected' : ''}>開始時</option>
+            <option value="BATTLE_START_CONDITIONAL" ${effect.trigger_timing === 'BATTLE_START_CONDITIONAL' ? 'selected' : ''}>開始時(条件)</option>
+            <option value="ON_FIRST_ATTACK" ${effect.trigger_timing === 'ON_FIRST_ATTACK' ? 'selected' : ''}>初回攻撃</option>
+            <option value="ON_ATTACK" ${effect.trigger_timing === 'ON_ATTACK' ? 'selected' : ''}>攻撃毎</option>
+            <option value="ON_DAMAGED" ${effect.trigger_timing === 'ON_DAMAGED' ? 'selected' : ''}>被攻撃毎</option>
+            <option value="ON_DEFEATED" ${effect.trigger_timing === 'ON_DEFEATED' ? 'selected' : ''}>倒された時</option>
+            <option value="ON_ALLY_DEFEATED" ${effect.trigger_timing === 'ON_ALLY_DEFEATED' ? 'selected' : ''}>味方倒時</option>
+            <option value="ON_KILL" ${effect.trigger_timing === 'ON_KILL' ? 'selected' : ''}>敵倒時</option>
+            <option value="ON_HP_BELOW" ${effect.trigger_timing === 'ON_HP_BELOW' ? 'selected' : ''}>HP%以下</option>
+            <option value="ON_HP_ABOVE" ${effect.trigger_timing === 'ON_HP_ABOVE' ? 'selected' : ''}>HP%以上</option>
+            <option value="ON_TIMER" ${effect.trigger_timing === 'ON_TIMER' ? 'selected' : ''}>秒経過後</option>
+            <option value="ON_COUNT" ${effect.trigger_timing === 'ON_COUNT' ? 'selected' : ''}>回数達成</option>
+            <option value="WHILE_ALIVE" ${effect.trigger_timing === 'WHILE_ALIVE' ? 'selected' : ''}>倒れるまで</option>
+            <option value="WHILE_CONDITION" ${effect.trigger_timing === 'WHILE_CONDITION' ? 'selected' : ''}>条件継続中</option>
+        </select>
+        <input type="checkbox" class="buff-has-requirement" ${effect.has_requirement ? 'checked' : ''} style="transform: scale(1.5);" onchange="toggleRequirementFields(this)">
+        <div class="buff-requirement-fields" style="display: ${effect.has_requirement ? 'flex' : 'none'}; gap: 4px; align-items: center;">
+            <input type="hidden" class="requirement-type buff-req-type" value="${effect.requirement_type || ''}">
+            <input type="hidden" class="requirement-value buff-req-value" value="${(effect.requirement_value || '').endsWith('!') ? (effect.requirement_value || '').slice(0, -1) : (effect.requirement_value || '')}">
+            <input type="hidden" class="requirement-count buff-req-count" value="${effect.requirement_count || ''}">
+        </div>
         <button class="delete-buff" onclick="this.parentElement.remove()">×</button>
     `;
     editor.appendChild(row);
+    
+    // 既存データで要求がある場合、UIを構築する
+    if (effect.has_requirement) {
+        const reqFields = row.querySelector('.buff-requirement-fields');
+        if (reqFields && !reqFields.dataset.initialized) {
+            buildRequirementIconSelector(reqFields);
+            reqFields.dataset.initialized = 'true';
+        }
+    }
 }
 
 // --- ▼▼▼ 修正箇所：新しい関数をスクリプトの末尾に追加 ▼▼▼ ---
+function toggleRequirementFields(checkbox) {
+    const row = checkbox.closest('.buff-row');
+    const reqFields = row.querySelector('.buff-requirement-fields');
+    if (reqFields) {
+        if (checkbox.checked) {
+            reqFields.style.display = 'flex';
+            // 初回チェック時にアイコン選択UIを構築（まだ構築されていない場合）
+            if (!reqFields.dataset.initialized) {
+                buildRequirementIconSelector(reqFields);
+                reqFields.dataset.initialized = 'true';
+            }
+        } else {
+            reqFields.style.display = 'none';
+            // 非表示にした時、要求フィールドをクリア
+            clearRequirementSelection(reqFields);
+        }
+    }
+}
+
+function buildRequirementIconSelector(container) {
+    // 既存データから初期値を取得（hidden inputsから）
+    const typeInput = container.querySelector('.requirement-type, .buff-req-type');
+    const valueInput = container.querySelector('.requirement-value, .buff-req-value');
+    const countInput = container.querySelector('.requirement-count, .buff-req-count');
+    
+    const existingType = typeInput ? typeInput.value : '';
+    const existingValue = valueInput ? valueInput.value : '';
+    const existingCount = countInput ? countInput.value : '1';
+    const hasExclude = existingValue.endsWith('!');
+    const cleanValue = hasExclude ? existingValue.slice(0, -1) : existingValue;
+    
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: flex; gap: 8px; align-items: center; flex-wrap: wrap;';
+    
+    // 要求タイプ名マッピング
+    const typeNames = {
+        a: { 1: '動物', 2: '昆虫', 3: '機械', 4: 'ナゾ' },
+        b: { 1: '宇宙連合', 2: '星間帝国', 3: '恒星連邦', 4: 'unknown', 5: '銀河同盟' },
+        c: { 1: 'たんたい', 2: 'はんい' },
+        d: { 1: 'ちかい', 2: 'ふつう', 3: 'とおい' },
+        f: { 1: '攻撃', 2: '防御', 3: '支援', 4: '回復' },
+        e: { 
+            A: '海', B: '夜', C: '氷', D: 'ラブ', E: '空', F: '音', 
+            G: '魔術', H: '熱', I: '大和', J: 'エレメント', K: '新星', 
+            L: 'チケット', M: '突然変異', N: '競技', O: '盗賊', 
+            P: '祈祷', Q: '闇', AA: 'パックマン/カタログIP'
+        }
+    };
+    
+    // ドロップダウンメニュー
+    const select = document.createElement('select');
+    select.className = 'requirement-select';
+    select.style.cssText = 'padding: 4px 8px; font-size: 11px; min-width: 150px;';
+    
+    // 空オプション
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '-- 要求を選択 --';
+    select.appendChild(emptyOption);
+    
+    // 各タイプのオプションを生成
+    const categories = [
+        { type: 'a', label: '属性' },
+        { type: 'b', label: '所属' },
+        { type: 'c', label: '攻撃はんい' },
+        { type: 'd', label: '攻撃きょり' },
+        { type: 'f', label: 'ロール' },
+        { type: 'e', label: 'タイプ' }
+    ];
+    
+    categories.forEach(cat => {
+        const names = typeNames[cat.type];
+        for (const [val, name] of Object.entries(names)) {
+            const option = document.createElement('option');
+            option.value = `${cat.type}:${val}`;
+            option.textContent = `${cat.label}：${name}`;
+            // 既存データとマッチしたら選択
+            if (cat.type === existingType && String(val) === cleanValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+    });
+    
+    // 選択変更イベント
+    select.addEventListener('change', () => {
+        const selectedValue = select.value;
+        if (selectedValue) {
+            const [type, value] = selectedValue.split(':');
+            const typeInput = container.querySelector('.requirement-type, .buff-req-type');
+            const valueInput = container.querySelector('.requirement-value, .buff-req-value');
+            if (typeInput) typeInput.value = type;
+            if (valueInput) valueInput.value = value;
+        } else {
+            const typeInput = container.querySelector('.requirement-type, .buff-req-type');
+            const valueInput = container.querySelector('.requirement-value, .buff-req-value');
+            if (typeInput) typeInput.value = '';
+            if (valueInput) valueInput.value = '';
+        }
+    });
+    
+    // 必要数入力
+    const countInputElem = document.createElement('input');
+    countInputElem.type = 'number';
+    countInputElem.className = 'requirement-count buff-req-count';
+    countInputElem.min = '1';
+    countInputElem.max = '5';
+    countInputElem.value = existingCount ? existingCount : '1';
+    countInputElem.style.cssText = 'width: 50px; padding: 4px; font-size: 11px;';
+    countInputElem.placeholder = '必要数';
+    
+    // 以外チェックボックス
+    const excludeLabel = document.createElement('label');
+    excludeLabel.style.cssText = 'font-size: 11px; white-space: nowrap; color: #ccc; display: flex; align-items: center; gap: 4px;';
+    const excludeCheck = document.createElement('input');
+    excludeCheck.type = 'checkbox';
+    excludeCheck.className = 'requirement-exclude';
+    excludeCheck.checked = hasExclude;
+    excludeLabel.appendChild(excludeCheck);
+    excludeLabel.appendChild(document.createTextNode('以外'));
+    
+    // 既存のhidden inputsを保持
+    const hiddenInputs = container.innerHTML;
+    
+    // コンテナを再構築
+    container.innerHTML = '';
+    wrapper.appendChild(select);
+    wrapper.appendChild(countInputElem);
+    wrapper.appendChild(excludeLabel);
+    container.appendChild(wrapper);
+    container.insertAdjacentHTML('beforeend', hiddenInputs);
+    
+    // 必要数変更イベント
+    countInputElem.addEventListener('change', () => {
+        const countInput = container.querySelector('.requirement-count, .buff-req-count');
+        if (countInput) {
+            countInput.value = countInputElem.value;
+        }
+    });
+    
+    // 以外チェックボックス変更イベント
+    excludeCheck.addEventListener('change', () => {
+        const valueInput = container.querySelector('.requirement-value, .buff-req-value');
+        if (valueInput) {
+            const baseValue = valueInput.value.replace('!', '');
+            valueInput.value = excludeCheck.checked ? baseValue + '!' : baseValue;
+        }
+    });
+}
+
+function renderIconGrid(gridElement, reqType, container) {
+    // この関数は不要になったので空にする
+}
+
+function clearRequirementSelection(container) {
+    container.querySelector('.requirement-type').value = '';
+    container.querySelector('.requirement-value').value = '';
+    if (container.querySelector('.requirement-count')) {
+        container.querySelector('.requirement-count').value = '';
+    }
+    if (container.querySelector('.requirement-exclude')) {
+        container.querySelector('.requirement-exclude').checked = false;
+    }
+}
+
 function toggleBuffDebuff(button) {
     const row = button.closest('.buff-row');
     const nameInput = row.querySelector('.buff-name');
@@ -320,7 +601,22 @@ async function saveLabels() {
                 if(name) {
                     const slotValue = row.querySelector('.buff-slot').value;
                     if (slotValue === 'null') hasUnknownSlot = true;
-                    // --- ▼▼▼ 修正箇所：「確率」の値を保存データに含める ▼▼▼ ---
+                    
+                    // 要求フィールドの取得
+                    const hasRequirement = row.querySelector('.buff-has-requirement').checked;
+                    let reqType = null, reqValue = null, reqCount = null;
+                    if (hasRequirement) {
+                        reqType = row.querySelector('.buff-req-type').value;
+                        reqValue = row.querySelector('.buff-req-value').value;
+                        reqCount = parseInt(row.querySelector('.buff-req-count').value) || null;
+                        
+                        // 「以外」チェックボックスがチェックされていたら、valueの末尾に"!"を付ける
+                        const excludeCheckbox = row.querySelector('.requirement-exclude');
+                        if (excludeCheckbox && excludeCheckbox.checked) {
+                            reqValue = reqValue + '!';
+                        }
+                    }
+                    
                     output.push({
                         group_id: parseInt(row.querySelector('.buff-group').value) || 0,
                         name: name,
@@ -331,9 +627,13 @@ async function saveLabels() {
                         probability: parseInt(row.querySelector('.buff-probability').value) || 100,
                         occupies_slot: slotValue === 'null' ? null : (slotValue === 'true'),
                         is_debuff: row.dataset.isDebuff === 'true',
-                        awakening_required: row.querySelector('.buff-awakening').checked
+                        awakening_required: row.querySelector('.buff-awakening').checked,
+                        trigger_timing: row.querySelector('.buff-timing').value,
+                        has_requirement: hasRequirement,
+                        requirement_type: reqType,
+                        requirement_value: reqValue,
+                        requirement_count: reqCount
                     });
-                    // --- ▲▲▲ 修正箇所 ▲▲▲ ---
                 }
             });
         }
@@ -352,37 +652,20 @@ async function saveLabels() {
         body: JSON.stringify({data: dataToSave})
     });
     
-    const icon = document.getElementById(`alien-icon-${currentAlienId}`);
-    const hasUnknownAfterSave = dataToSave.some(d => d.status === 'unknown');
-    const allProcessed = dataToSave.every(d => d.status === 'complete');
+    // 保存後のステータスを判定（4段階）
+    // キャッシュクリアされているので、次回ロード時に正しいステータスが反映される
+    // ここではUIのみ暫定的に更新
     
-    let newStatus = 'incomplete';
-    if(hasUnknownAfterSave) {
-        newStatus = 'unknown';
-    } else if (allProcessed) {
-        newStatus = 'complete';
-    }
-    
-    let marker = icon.querySelector('.status-marker');
-    if (!marker) {
-        marker = document.createElement('div');
-        icon.appendChild(marker);
-    }
-    marker.className = `status-marker ${newStatus}`;
-
     await updateBuffNameList();
+    await updateStats();
     btn.textContent = '保存完了！';
     setTimeout(() => {
-        const nextIncompleteMarker = document.querySelector('.alien-icon .status-marker.incomplete');
-        if (nextIncompleteMarker) {
-            loadAlien(nextIncompleteMarker.closest('.alien-icon').dataset.id);
+        // 次の未検証エイリアンに移動
+        const nextUnverified = document.querySelector('.alien-icon .status-marker.unverified');
+        if (nextUnverified) {
+            loadAlien(nextUnverified.closest('.alien-icon').dataset.id);
         } else {
-            const nextUnknownMarker = document.querySelector('.alien-icon .status-marker.unknown');
-            if (nextUnknownMarker) {
-                loadAlien(nextUnknownMarker.closest('.alien-icon').dataset.id);
-            } else {
-                document.getElementById('editor-area').innerHTML = '<h2>全ての処理が完了しました！</h2>';
-            }
+            document.getElementById('editor-area').innerHTML = '<h2>全ての処理が完了しました！</h2>';
         }
     }, 1000);
 }
@@ -531,6 +814,45 @@ function jumpToAlien(alienId) {
     const icon = document.getElementById(`alien-icon-${alienId}`);
     if(icon) {
         icon.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+async function holdAlien() {
+    if (!currentAlienId) return;
+    
+    // 保留理由は任意（空文字でもOK）
+    const notes = '';
+    
+    try {
+        const response = await fetch('/hold-alien', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alien_id: currentAlienId, notes })
+        });
+        
+        if (response.ok) {
+            alert('保留しました');
+            
+            // ステータスマーカーを更新
+            const icon = document.getElementById(`alien-icon-${currentAlienId}`);
+            let marker = icon.querySelector('.status-marker');
+            if (!marker) {
+                marker = document.createElement('div');
+                icon.appendChild(marker);
+            }
+            marker.className = 'status-marker on_hold';
+            
+            await updateStats();
+            
+            // 次の未検証エイリアンに移動
+            const nextUnverified = document.querySelector('.alien-icon .status-marker.unverified');
+            if (nextUnverified) {
+                loadAlien(nextUnverified.closest('.alien-icon').dataset.id);
+            }
+        }
+    } catch (error) {
+        console.error('保留エラー:', error);
+        alert('保留中にエラーが発生しました');
     }
 }
 
