@@ -1,0 +1,197 @@
+{
+  "たいりょく回復": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_HEAL",
+    "description": "「たいりょくを回復」「たいりょくをものすごく回復」など"
+  },
+  "たいりょく吸収": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_HEAL",
+    "description": "「与えたダメージの〇%分をたいりょく吸収する」"
+  },
+  "呪縛解除": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_HEAL",
+    "description": "「呪縛状態を解除する」「呪縛を解除」"
+  },
+  "毒解除": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_HEAL",
+    "description": "「毒状態を解除する」「毒を解除」"
+  },
+  "気絶解除": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_HEAL",
+    "description": "「気絶状態を解除する」"
+  },
+  "足止め解除": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_HEAL",
+    "description": "「足止め状態を解除する」"
+  },
+  "つよさアップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "★攻撃力アップとは別の効果です"
+  },
+  "ひきよせ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「敵を自分にひきつける」「敵の標的になる」"
+  },
+  "やるきアップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「やるきをアップ」"
+  },
+  "クリティカルダメージアップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「クリティカルダメージをアップ」"
+  },
+  "クリティカル率アップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「クリティカル率をアップ」「クリティカルが出やすくなる」"
+  },
+  "ダメージ反射": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「ダメージを反射する」"
+  },
+  "与ダメージアップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「与えるダメージをアップ」「敵に与えるダメージをアップ」"
+  },
+  "凶暴化": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「凶暴化する」"
+  },
+  "回避率アップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「回避率をアップ」「攻撃を回避するようになる」"
+  },
+  "奮迅": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「奮迅状態（やるきアップ、攻撃回数アップ、被ダメージ軽減）になる」"
+  },
+  "攻撃力アップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "★つよさアップとは別の効果です"
+  },
+  "攻撃回数アップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「攻撃回数を〇回アップ」「れんぞく攻撃が1回増加」など"
+  },
+  "無双": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「無双状態（移動速度アップ、攻撃回数アップ、回避率アップ）になる」"
+  },
+  "特技与ダメージアップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「特技で与えるダメージをアップ」"
+  },
+  "いどうアップ": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「いどうをアップ」「いどうも速くなる」"
+  },
+  "被ダメージ軽減": {
+    "effect_type": "BUFF",
+    "category": "S_SKILL_BUFF",
+    "description": "「被ダメージを軽減」「被ダメージを減らす」"
+  },
+  "被ダメージ軽減無効": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「被ダメージ軽減バフを無効化する」"
+  },
+  "たいりょく回復量ダウン": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「たいりょく回復量をダウン」※たいりょく吸収を除く"
+  },
+  "つよさダウン": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「つよさをダウン」"
+  },
+  "やるきダウン": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「やるきをダウン」"
+  },
+  "攻撃力ダウン": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「攻撃力を下げる」"
+  },
+  "いどうダウン": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「いどうをダウン」"
+  },
+  "急速ダメージ": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「たいりょくの〇%分の急速ダメージ」"
+  },
+  "与ダメージダウン": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「与ダメージをダウン」"
+  },
+  "被ダメージアップ": {
+    "effect_type": "DEBUFF",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「被ダメージをアップ」（敵へのデバフ）"
+  },
+  "のけぞり付与": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「のけぞりやすくする」「のけぞらせやすくなる」"
+  },
+  "吹き飛ばし": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「大きく吹き飛ばす」「敵を吹き飛ばし」"
+  },
+  "呪縛": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「呪縛状態にする」"
+  },
+  "小人化": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「小人化する」「ものすごく小人化して」"
+  },
+  "攻撃不可": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「攻撃できなくする」「攻撃不可にする」"
+  },
+  "毒付与": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「毒状態にする」「毒状態にしやすい」「高確率で毒状態にする」など"
+  },
+  "気絶付与": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「気絶させる」「気絶させやすく」「高確率で気絶させる」など"
+  },
+  "足止め": {
+    "effect_type": "STATUS",
+    "category": "S_SKILL_DEBUFF",
+    "description": "「足止めする」"
+  }
+}

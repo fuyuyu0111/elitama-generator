@@ -2,6 +2,7 @@ import os
 import re
 import time
 import requests
+import argparse
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, parse_qs
 
@@ -56,10 +57,18 @@ if __name__ == '__main__':
         os.makedirs(SAVE_DIRECTORY)
         print(f"保存フォルダ '{SAVE_DIRECTORY}' を作成しました。")
 
-    input_url = input("収集を開始したいエイリアン一覧ページのURLを貼り付けてEnterを押してください:\n> ")
-    if not input_url.strip():
-        print("URLが入力されませんでした。処理を終了します。")
-        exit()
+    parser = argparse.ArgumentParser(description='エイリアンの画像をスクレイピングしてダウンロード')
+    parser.add_argument('--url', type=str, help='スクレイピング開始URL（環境変数SCRAPING_BASE_URLでも指定可能）')
+    args = parser.parse_args()
+    
+    # URL取得: コマンドライン引数 > 環境変数
+    input_url = args.url or os.environ.get('SCRAPING_BASE_URL')
+    if not input_url or not input_url.strip():
+        print("エラー: URLが指定されていません。")
+        print("使用方法:")
+        print("  1. コマンドライン引数: python image_scraper.py --url <URL>")
+        print("  2. 環境変数: SCRAPING_BASE_URL=<URL> python image_scraper.py")
+        exit(1)
 
     # URLを解析して、ページ番号を差し替えるためのベースURLを作成
     parsed_url = urlparse(input_url)

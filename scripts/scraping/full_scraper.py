@@ -3,6 +3,7 @@ import re
 import time
 import requests
 import psycopg2
+import argparse
 from bs4 import BeautifulSoup
 from pprint import pprint
 from urllib.parse import urljoin, urlparse, parse_qs
@@ -181,6 +182,47 @@ def scrape_alien_data(session, url):
                         skill_effect = raw_text.replace('\n＜', '＜')
                         data['skills'].append({'name': skill_name, 'text': skill_effect})
         
+        # ★★★ 特技データの取得 ★★★
+        # 注意: 実際のHTML構造に合わせてセレクタを調整する必要がある可能性があります
+        data['special_skill'] = None
+        data['special_skill_text'] = None
+        
+        # 特技テーブルを検索
+        special_skill_table = None
+        for table in detail_section.find_all('table', class_='data-detail-common'):
+            if table.find('th', text=re.compile(r'特技')):
+                special_skill_table = table
+                break
+        
+        if special_skill_table:
+            special_th = special_skill_table.find('th', text=re.compile(r'特技'))
+            if special_th and special_th.find_next_sibling('td'):
+                special_td = special_th.find_next_sibling('td')
+                # 特技名を取得
+                special_name_elem = special_td.find('a') or special_td.find('p')
+                if special_name_elem:
+                    data['special_skill'] = special_name_elem.text.strip()
+                
+                # 特技テキストを取得（個性と同じ構造を想定）
+                # 個性と同じように、リンクの親要素の次のpタグから取得
+                if special_name_elem:
+                    special_effect_container = special_name_elem.find_parent('p')
+                    if special_effect_container:
+                        special_effect_container = special_effect_container.find_next_sibling('p')
+                    
+                    if special_effect_container:
+                        raw_text = special_effect_container.get_text(separator='\n', strip=True)
+                        special_effect = raw_text.replace('\n＜', '＜')
+                        data['special_skill_text'] = special_effect
+                else:
+                    # リンクがない場合のフォールバック
+                    all_p_tags = special_td.find_all('p')
+                    if len(all_p_tags) > 1:
+                        # 2つ目以降のpタグから取得
+                        raw_text = all_p_tags[1].get_text(separator='\n', strip=True)
+                        special_effect = raw_text.replace('\n＜', '＜')
+                        data['special_skill_text'] = special_effect
+        
         return data
 
     except requests.exceptions.RequestException as e:
@@ -221,11 +263,16 @@ def upsert_alien_to_db(conn, data):
             db_data[f'skill_no{i+1}'] = None
             db_data[f'skill_text{i+1}'] = None
 
-    # ★★★ INSERT/UPDATE文で使う列の順番に role を追加 ★★★
+    # ★★★ 特技データを追加 ★★★
+    db_data['S_Skill'] = data.get('special_skill') or None
+    db_data['S_Skill_text'] = data.get('special_skill_text') or None
+
+    # ★★★ INSERT/UPDATE文で使う列の順番に role と特技を追加 ★★★
     columns = [
         'id', 'name', 'attribute', 'affiliation', 'attack_range', 'attack_area',
         'type_1', 'type_2', 'type_3', 'type_4', 'role', 'skill_no1', 'skill_text1',
-        'skill_no2', 'skill_text2', 'skill_no3', 'skill_text3'
+        'skill_no2', 'skill_text2', 'skill_no3', 'skill_text3',
+        'S_Skill', 'S_Skill_text'  # 特技データを追加
     ]
     values = [db_data.get(col) for col in columns]
 
@@ -247,10 +294,18 @@ def upsert_alien_to_db(conn, data):
 
 # --- メインの実行部分 ---
 if __name__ == '__main__':
-    input_url = input("収集を開始したいエイリアン一覧ページのURLを貼り付けてEnterを押してください:\n> ")
-    if not input_url.strip():
-        print("URLが入力されませんでした。処理を終了します。")
-        exit()
+    parser = argparse.ArgumentParser(description='エイリアンデータをスクレイピングしてDBに保存')
+    parser.add_argument('--url', type=str, help='スクレイピング開始URL（環境変数SCRAPING_BASE_URLでも指定可能）')
+    args = parser.parse_args()
+    
+    # URL取得: コマンドライン引数 > 環境変数
+    input_url = args.url or os.environ.get('SCRAPING_BASE_URL')
+    if not input_url or not input_url.strip():
+        print("エラー: URLが指定されていません。")
+        print("使用方法:")
+        print("  1. コマンドライン引数: python full_scraper.py --url <URL>")
+        print("  2. 環境変数: SCRAPING_BASE_URL=<URL> python full_scraper.py")
+        exit(1)
 
     parsed_url = urlparse(input_url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}?"
