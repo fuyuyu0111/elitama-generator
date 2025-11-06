@@ -39,13 +39,12 @@
             overscroll-behavior-x: none; /* 横方向のオーバースクロール（戻るジェスチャー）を無効化 */
             touch-action: pan-y pinch-zoom; /* 縦スクロールとピンチズームのみ許可 */
         }
-        /* モバイルブラウザではアドレスバー分だけスクロール可能にする */
+        /* モバイルブラウザではスクロールを許可（ブラウザのヘッダーを無視してスクロール可能にする） */
         @media (max-width: 768px) {
             body {
                 overflow-y: auto; /* 縦スクロールを許可 */
                 overflow-x: hidden; /* 横スクロールは禁止 */
-                min-height: calc(100vh + 100px); /* アドレスバー分（約100px）の余分な高さを追加 */
-                height: auto; /* 高さを自動に */
+                /* height: 100vh のまま（UIの高さは変更しない） */
             }
         }
         * { box-sizing: border-box; }
@@ -57,12 +56,6 @@
             display: none;
             flex-direction: column;
             height: 100vh; /* ビューポート全体の高さ */
-        }
-        /* モバイルブラウザではアドレスバー分の余分な高さを追加 */
-        @media (max-width: 768px) {
-            #main-content {
-                min-height: calc(100vh + 100px); /* アドレスバー分（約100px）の余分な高さを追加 */
-            }
         }
         .header {
             position: relative; height: var(--header-height); background-color: var(--dark-bg);
@@ -1524,24 +1517,24 @@
     //  ローディング画面の制御
     // ==========================================================================
     
-    // --- モバイルブラウザのアドレスバー分だけスクロール可能にする関数 ---
+    // --- モバイルブラウザでスクロール可能にする関数 ---
     function setupMobileScroll() {
         // モバイルブラウザのみ実行（画面幅が小さい場合）
         if (window.innerWidth <= 768) {
-            // アドレスバーの高さを推定（通常50-100px程度）
-            const addressBarHeight = 100;
+            // 実際の可視領域と100vhの差を計算（アドレスバー分）
+            // アドレスバーが表示されている場合、window.innerHeight < window.outerHeight になる
+            const viewportHeight = window.innerHeight;
+            const outerHeight = window.outerHeight;
+            const addressBarHeight = Math.max(outerHeight - viewportHeight, 50); // 最低50px
             
-            // 初期位置をアドレスバー分だけ下にスクロール
-            // これにより、ユーザーが上にスクロールすればアドレスバーが縮小し、
-            // 下にスクロールすれば見切れている部分が見える
-            window.scrollTo({
-                top: addressBarHeight,
-                behavior: 'auto' // 即座にスクロール
-            });
-            
-            // スクロール位置を維持するための処理
-            // ユーザーが上にスクロールしてアドレスバーが縮小した場合、
-            // スクロール位置が0に近づくが、それは正常な動作
+            // 初期位置を少し下にスクロール（アドレスバーが表示されている場合）
+            // これにより、ユーザーが上にスクロールすればアドレスバーが縮小する
+            if (addressBarHeight > 0) {
+                window.scrollTo({
+                    top: addressBarHeight,
+                    behavior: 'auto' // 即座にスクロール
+                });
+            }
         }
     }
     
