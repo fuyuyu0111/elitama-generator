@@ -1509,7 +1509,7 @@
     //  ローディング画面の制御
     // ==========================================================================
     
-    // --- モバイルブラウザのアドレスバーを縮小する関数 ---
+    // --- モバイルブラウザのアドレスバーを縮小する関数（改善版） ---
     function minimizeAddressBar() {
         // モバイルブラウザのみ実行（画面幅が小さい場合）
         if (window.innerWidth <= 768) {
@@ -1520,15 +1520,25 @@
             document.body.style.overflow = 'auto';
             document.body.style.height = 'auto';
             
-            // 1px下にスクロールしてアドレスバーを縮小
-            window.scrollTo(0, 1);
+            // より大きな距離をスクロール（画面高さ + 余裕を持たせる）
+            const scrollDistance = Math.max(window.innerHeight + 50, 500);
+            window.scrollTo({
+                top: scrollDistance,
+                behavior: 'auto' // 'smooth'ではなく'auto'で即座にスクロール
+            });
             
-            // すぐに戻す（ユーザーには見えない）
+            // ブラウザが検知する時間を与えてから戻す
             setTimeout(() => {
-                window.scrollTo(0, 0);
-                document.body.style.overflow = originalOverflow || 'hidden';
-                document.body.style.height = originalHeight || '100vh';
-            }, 50);
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'auto'
+                });
+                // さらに少し待ってからoverflowを戻す
+                setTimeout(() => {
+                    document.body.style.overflow = originalOverflow || 'hidden';
+                    document.body.style.height = originalHeight || '100vh';
+                }, 150);
+            }, 400); // 400ms待つ（ブラウザが検知する時間）
         }
     }
     
