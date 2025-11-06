@@ -1517,30 +1517,7 @@
     //  ローディング画面の制御
     // ==========================================================================
     
-    // --- モバイルブラウザでスクロール可能にする関数 ---
-    function setupMobileScroll() {
-        // モバイルブラウザのみ実行（画面幅が小さい場合）
-        if (window.innerWidth <= 768) {
-            // 実際の可視領域と100vhの差を計算（アドレスバー分）
-            // アドレスバーが表示されている場合、window.innerHeight < window.outerHeight になる
-            const viewportHeight = window.innerHeight;
-            const outerHeight = window.outerHeight;
-            const addressBarHeight = Math.max(outerHeight - viewportHeight, 50); // 最低50px
-            
-            // 初期位置を少し下にスクロール（アドレスバーが表示されている場合）
-            // これにより、ユーザーが上にスクロールすればアドレスバーが縮小する
-            if (addressBarHeight > 0) {
-                window.scrollTo({
-                    top: addressBarHeight,
-                    behavior: 'auto' // 即座にスクロール
-                });
-            }
-        }
-    }
-    
     document.addEventListener('DOMContentLoaded', () => {
-        // モバイルブラウザでアドレスバー分だけスクロール可能にする
-        setupMobileScroll();
         
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingMessage = document.getElementById('loading-message');
@@ -1589,9 +1566,6 @@
         // --- ローディング完了処理 ---
         function finishLoading() {
             if (loadingMessage) loadingMessage.textContent = '起動完了！';
-            
-            // ローディング完了後、モバイルブラウザでスクロール位置を設定
-            setupMobileScroll();
             
             setTimeout(() => {
                 if(loadingOverlay) loadingOverlay.style.display = 'none';
