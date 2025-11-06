@@ -1508,7 +1508,34 @@
     // ==========================================================================
     //  ローディング画面の制御
     // ==========================================================================
+    
+    // --- モバイルブラウザのアドレスバーを縮小する関数 ---
+    function minimizeAddressBar() {
+        // モバイルブラウザのみ実行（画面幅が小さい場合）
+        if (window.innerWidth <= 768) {
+            const originalOverflow = document.body.style.overflow;
+            const originalHeight = document.body.style.height;
+            
+            // 一時的にスクロール可能にする
+            document.body.style.overflow = 'auto';
+            document.body.style.height = 'auto';
+            
+            // 1px下にスクロールしてアドレスバーを縮小
+            window.scrollTo(0, 1);
+            
+            // すぐに戻す（ユーザーには見えない）
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.body.style.overflow = originalOverflow || 'hidden';
+                document.body.style.height = originalHeight || '100vh';
+            }, 50);
+        }
+    }
+    
     document.addEventListener('DOMContentLoaded', () => {
+        // 初期スクロール処理（ローディング画面表示中にアドレスバーを縮小）
+        minimizeAddressBar();
+        
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingMessage = document.getElementById('loading-message');
         const mainContent = document.getElementById('main-content');
@@ -1556,6 +1583,10 @@
         // --- ローディング完了処理 ---
         function finishLoading() {
             if (loadingMessage) loadingMessage.textContent = '起動完了！';
+            
+            // 再度アドレスバーを縮小（念のため）
+            minimizeAddressBar();
+            
             setTimeout(() => {
                 if(loadingOverlay) loadingOverlay.style.display = 'none';
                 if(mainContent) mainContent.style.display = 'flex'; // main-contentをflexにする
