@@ -52,6 +52,13 @@
             }
         }
         * { box-sizing: border-box; }
++        button, a {
++            -webkit-tap-highlight-color: transparent;
++        }
++        button:focus,
++        a:focus {
++            outline: none;
++        }
 
         /* ==========================================================================
             全体レイアウト
@@ -68,7 +75,17 @@
             align-items: center; justify-content: center; font-size: 1.2em;
             font-weight: bold; margin-bottom: 0; flex-shrink: 0;
         }
-        /* 管理モード時はネオンカラーをすべてオレンジに */
+        .header-title-container {
+            display: flex;
+            align-items: center;
+            gap: 0.8vh;
+        }
+        .header-title-icon {
+            height: calc(var(--header-height) * 0.6);
+            width: auto;
+            object-fit: contain;
+        }
+         /* 管理モード時はネオンカラーをすべてオレンジに */
         body.admin-mode,
         body.admin-mode * {
             --accent-green: #ff8800 !important;
@@ -1071,6 +1088,7 @@
         .party-nav-button {
             background: none; border: none; color: var(--light-text);
             font-size: 2vh; cursor: pointer; padding: 0 1.5vh;
+            touch-action: manipulation;
         }
         .party-nav-button:disabled { opacity: 0.3; cursor: default; }
         .party-dots { display: flex; gap: 1.5vh; }
@@ -1298,7 +1316,10 @@
                 <button id="overview-button" class="header-button">一</button>
                 <div class="overview-button-label">一覧表示</div>
             </div>
-            <span id="header-title">エリジェネ</span>
+            <div class="header-title-container">
+                <span id="header-title">エリジェネ</span>
+                <img src="/static/main_icon.png" alt="エリジェネアイコン" class="header-title-icon">
+            </div>
             <div class="header-help-container">
                 <button id="help-button" class="header-button">？</button>
                 <div class="help-button-label">使い方</div>
@@ -1569,7 +1590,7 @@
                     <p>「ID」「属性」「所属」「たいりょく」「こうげき」「やるき」「おおきさ」「いどう」「攻撃はんい」「攻撃きょり」で並び替えられます。「降順」ボタンで昇順/降順を切り替えられます。</p>
                     
                     <h3>アイコン長押しプレビュー</h3>
-                    <p>エイリアン一覧画面で、エイリアンのアイコンを長押しすると、そのエイリアンを現在のパーティに追加した場合のプレビューが表示されます。プレビューでは個性の発動条件がリアルタイムで判定され、スキルの詳細も確認できます。プレビューを閉じるには、画面外をタップするか、ESCキーを押してください。</p>
+                    <p>エイリアン一覧画面で、エイリアンのアイコンを長押しすると、そのエイリアンを現在のパーティに追加した場合のプレビューが表示されます。プレビューでは個性の発動条件がリアルタイムで判定され、スキルの詳細も確認できます。</p>
                 </div>
 
                 <!-- ページ6: バフ・デバフ絞り込み -->
@@ -1742,12 +1763,19 @@
         return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     };
 
+    const isIOSDevice = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+
     function updateInstallButtonVisibility() {
         if (!installButtonElement) {
             return;
         }
         if (isStandaloneDisplayMode()) {
             installButtonElement.style.display = 'none';
+            return;
+        }
+        if (isIOSDevice()) {
+            installButtonElement.style.display = 'block';
+            installButtonElement.textContent = 'ホームに追加（Safari共有から）';
             return;
         }
         installButtonElement.style.display = deferredInstallPrompt ? 'block' : 'none';
@@ -1846,6 +1874,7 @@
         },
         betweenTabs: 'and'    // 個性タブと特技タブの間のAND/OR
     };
+    const selectedPersonalitySkillSlots = new Set(['1', '2', '3']);
     
     // 効果名をプロンプトの表記に統一する関数（特技用）
     function normalizeEffectName(effectName) {
@@ -2380,7 +2409,6 @@
         }
         return img;
     }
-
     /**
      * HTML文字列内の画像要素を既存のDOMからクローンした要素に置き換える
      * @param {HTMLElement} container - 画像要素を含むコンテナ要素
@@ -3426,7 +3454,7 @@
                 let personalityMatch = true;
                 if (personalityHasEffects) {
                     // 個性タブで効果が選択されている場合、個性1/2/3すべてをチェック
-                    const personalitySelectedSkills = new Set(['1', '2', '3']);
+                    const personalitySelectedSkills = new Set(selectedPersonalitySkillSlots);
                     personalityMatch = checkEffectMatch(
                         tabSelectionState.personality,
                         personalitySelectedSkills,
@@ -3802,6 +3830,8 @@
                         b.classList.add('selected');
                     }
                 });
+                selectedPersonalitySkillSlots.clear();
+                ['1', '2', '3'].forEach(v => selectedPersonalitySkillSlots.add(v));
                 // ダメージのみボタンもリセット
                 damageOnlyBtn.classList.remove('selected');
                 // 選択状態をクリア
@@ -4711,6 +4741,14 @@
             skillButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
                     btn.classList.toggle('selected');
+                    const value = btn.dataset.value;
+                    if (['1', '2', '3'].includes(value)) {
+                        if (btn.classList.contains('selected')) {
+                            selectedPersonalitySkillSlots.add(value);
+                        } else {
+                            selectedPersonalitySkillSlots.delete(value);
+                        }
+                    }
                     applyFilters();
                 });
             });
@@ -4751,6 +4789,8 @@
                         b.classList.add('selected');
                     }
                 });
+                selectedPersonalitySkillSlots.clear();
+                ['1', '2', '3'].forEach(v => selectedPersonalitySkillSlots.add(v));
                 // ダメージのみボタンもリセット
                 damageOnlyBtn.classList.remove('selected');
                 // 現在のタブの選択状態をクリア
@@ -5631,7 +5671,11 @@
     if (installButtonElement) {
         installButtonElement.addEventListener('click', async () => {
             if (!deferredInstallPrompt) {
-                alert('ブラウザの共有メニューから「ホーム画面に追加」を選択してください。');
+                if (isIOSDevice()) {
+                    alert('Safari画面下の共有ボタンから「ホーム画面に追加」を選択してください。');
+                } else {
+                    alert('ブラウザの共有メニューから「ホーム画面に追加」を選択してください。');
+                }
                 return;
             }
             installButtonElement.disabled = true;
