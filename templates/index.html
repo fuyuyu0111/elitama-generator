@@ -441,7 +441,7 @@
             エイリアン一覧ドロワー
            ========================================================================== */
         .alien-drawer { 
-            position: fixed; top: 0; left: 0; width: 95vw; max-width: 42.65vh; height: 100%; 
+            position: fixed; top: var(--header-height); left: 0; width: 95vw; max-width: 42.65vh; height: calc(100vh - var(--header-height)); 
             background-color: var(--dark-bg); border-right: 2px solid var(--accent-green); 
             transform: translateX(-100%); transition: transform 0.1s ease-in-out; z-index: 1000; 
             display: flex; flex-direction: column; 
@@ -799,7 +799,12 @@
             transition: left 0.1s ease-in-out; display: flex; align-items: center; justify-content: center; 
             -webkit-tap-highlight-color: transparent; 
         }
-        .alien-drawer.open+.drawer-toggle { left: 95vw; }
+        .alien-drawer { 
+            position: fixed; top: var(--header-height); left: 0; width: 95vw; max-width: 42.65vh; height: calc(100vh - var(--header-height)); 
+            background-color: var(--dark-bg); border-right: 2px solid var(--accent-green); 
+            transform: translateX(-100%); transition: transform 0.1s ease-in-out; z-index: 1000; 
+            display: flex; flex-direction: column; 
+        }
         @media (min-width: 0px) { .alien-drawer.open+.drawer-toggle { left: 42.65vh; } }
         .filter-row .filter-section#filter-section-attribute { flex: 4; }
         .filter-row .filter-section#filter-section-affiliation { flex: 5; }
@@ -1344,7 +1349,7 @@
                 <button class="control-button" data-sort-key="attribute">属性</button>
                 <button class="control-button" data-sort-key="affiliation">所属</button>
                 <button class="control-button" data-sort-key="hp">たいりょく</button>
-                <button class="control-button" data-sort-key="power">こうげき</button>
+                <button class="control-button" data-sort-key="power">つよさ</button>
                 <button class="control-button" data-sort-key="motivation">やるき</button>
                 <button class="control-button" data-sort-key="size">おおきさ</button>
                 <button class="control-button" data-sort-key="speed">いどう</button>
@@ -2438,7 +2443,6 @@
         
         return actionBtn;
     }
-
     /**
      * 指定されたパーティIDの編成を画面に描画する
      * @param {string} partyId - 描画するパーティのID（'1'～'5'）
@@ -3107,7 +3111,6 @@
             card.classList.toggle('selected', currentPartyMemberIds.has(card.dataset.id));
         });
     }
-
 //
     // ▽▽▽ 1290行目～： 既存の checkPartyRealtime 関数を、以下に丸ごと置き換え ▽▽▽
     //
@@ -5126,7 +5129,6 @@
         sourcePartyId: null,
         ghostElement: null
     };
-    
     /**
      * パーティ一覧を描画
      */
@@ -5761,7 +5763,6 @@
             }
         });
     });
-    
 // ==========================================================================
     //  初期化処理
     // ==========================================================================
@@ -6512,7 +6513,6 @@
             `).join('')}
         `;
     }
-    
     /**
      * 辞書管理モーダルを開く
      */
@@ -7291,7 +7291,6 @@
         pendingChanges.push(change);
         updateAdminUI();
     }
-    
     /**
      * 変更を一括でDBに適用
      */
@@ -8613,7 +8612,6 @@
                     });
                 }
             };
-            
             // 要求選択モーダルを開く関数
             const openNewSlotRequirementSelector = () => {
                 let tempSelectedRequirements = [...newSlotSelectedRequirements];
