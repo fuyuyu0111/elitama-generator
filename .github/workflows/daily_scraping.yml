@@ -60,22 +60,25 @@ jobs:
         if: failure()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        shell: python
         run: |
-          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-            python -c "
-import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path('scripts/utils').resolve()))
-from discord_notifier import DiscordNotifier
-try:
-    notifier = DiscordNotifier(os.environ.get('DISCORD_WEBHOOK_URL'))
-    notifier.send_error(
-        'GitHub Actionsでスクレイピング処理が失敗しました。',
-        Exception('ワークフローのログを確認してください。')
-    )
-except Exception as e:
-    print(f'Discord通知送信エラー: {e}')
-"
-          fi
+          import os
+          import sys
+          from pathlib import Path
+
+          webhook = os.environ.get('DISCORD_WEBHOOK_URL')
+          if not webhook:
+              raise SystemExit(0)
+
+          sys.path.insert(0, str(Path('scripts/utils').resolve()))
+          from discord_notifier import DiscordNotifier
+
+          try:
+              notifier = DiscordNotifier(webhook)
+              notifier.send_error(
+                  'GitHub Actionsでスクレイピング処理が失敗しました。',
+                  Exception('ワークフローのログを確認してください。')
+              )
+          except Exception as e:
+              print(f'Discord通知送信エラー: {e}')
 
