@@ -7,6 +7,10 @@
     
     <meta name="description" content="このツールは「エイリアンのたまご(エリたま)」の編成支援ジェネレーターです。チームに加えたエイリアンの個性発動条件が満たされているかをリアルタイムでシミュレーションできます。">
     <meta name="google-site-verification" content="rN0Cu7smvs0R4SD-s216F1z3JjXi0aG3WSrqoGzEkeU" />
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" href="/static/main_icon.png">
+    <link rel="apple-touch-icon" href="/static/main_icon.png">
 
     <style>
         /* ==========================================================================
@@ -58,7 +62,8 @@
             height: 100vh; /* ビューポート全体の高さ */
         }
         .header {
-            position: relative; height: var(--header-height); background-color: var(--dark-bg);
+            position: sticky; top: 0; z-index: 3000;
+            height: var(--header-height); background-color: var(--dark-bg);
             border-bottom: 0.237vh solid var(--accent-green); display: flex;
             align-items: center; justify-content: center; font-size: 1.2em;
             font-weight: bold; margin-bottom: 0; flex-shrink: 0;
@@ -840,6 +845,54 @@
         }
         .dictionary-button-label { font-size: 0.9vh; font-weight: bold; margin-top: 0.2vh; }
         
+        /* 全体スクレイピングボタン（辞書ボタンの右隣、管理モード時のみ表示） */
+        .header-scrape-container {
+            position: absolute; left: 11.5vh; top: 50%; transform: translateY(-50%);
+            display: none; /* デフォルトで非表示 */
+            flex-direction: column; align-items: center; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .header.admin-mode .header-scrape-container {
+            display: flex; /* 管理モード時のみ表示 */
+        }
+        .scrape-button-label { font-size: 0.9vh; font-weight: bold; margin-top: 0.2vh; }
+        .header-scrape-container.active-menu .header-button {
+            background: #ff8800;
+            border-color: #ffb347;
+        }
+        .scrape-dropdown {
+            position: absolute;
+            top: 4.2vh;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--dark-bg);
+            border: 0.237vh solid var(--accent-green);
+            border-radius: 0.6vh;
+            padding: 0.6vh 0;
+            display: none;
+            flex-direction: column;
+            gap: 0.4vh;
+            min-width: 16vh;
+            z-index: 2001;
+            box-shadow: 0 0 1vh rgba(0, 0, 0, 0.6);
+        }
+        .scrape-dropdown.open {
+            display: flex;
+        }
+        .scrape-dropdown button {
+            background: none;
+            border: none;
+            color: var(--light-text);
+            text-align: left;
+            padding: 0.8vh 1.2vh;
+            font-size: 1.2vh;
+            cursor: pointer;
+            width: 100%;
+        }
+        .scrape-dropdown button:hover {
+            background-color: rgba(255, 136, 0, 0.2);
+        }
+        
         /* 一覧表示ボタン（使い方ボタンのすぐ左） */
         .header-overview-container { 
             position: absolute; right: 6.5vh; top: 50%; transform: translateY(-50%);
@@ -861,8 +914,63 @@
         .modal-content li { margin-bottom: 1.2vh; line-height: 1.5; }
         .modal-content #close-modal-button { display: block; margin: 1.5vh auto 0; background-color: #6a7a8a; border-color: #5a6a7a; }
         .modal-overview {  font-size: 1.3vh; line-height: 1.6; margin-bottom: 2vh; text-align: center; }
-        .modal-links { margin-top: 2.5vh; font-size: 1.4vh; text-align: center; }
+        .modal-links {
+            margin-top: 2.5vh;
+            font-size: 1.4vh;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3vh;
+            align-items: center;
+        }
         .modal-links a { color: var(--accent-green); text-decoration: none; }
+        .modal-links p { margin: 0; line-height: 1.4; }
+        .modal-links button {
+            width: 100%;
+            max-width: 26vh;
+            font-size: 1.3vh;
+            margin: 0.2vh 0 0;
+        }
+        .scrape-modal-content {
+            background: var(--dark-bg);
+            padding: 2vh;
+            border-radius: 1vh;
+            border: 0.2vh solid var(--accent-green);
+            width: 90%;
+            max-width: 40vh;
+            color: var(--light-text);
+            display: flex;
+            flex-direction: column;
+            gap: 1.2vh;
+        }
+        .scrape-modal-content h3 {
+            margin: 0;
+            font-size: 1.6vh;
+        }
+        .scrape-modal-content p {
+            margin: 0;
+            font-size: 1.3vh;
+            line-height: 1.6;
+        }
+        .scrape-modal-content input {
+            width: 100%;
+            padding: 0.9vh;
+            font-size: 1.4vh;
+            background-color: var(--dark-bg);
+            border: 0.2vh solid var(--border-color);
+            border-radius: 0.6vh;
+            color: var(--light-text);
+        }
+        .scrape-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1vh;
+        }
+        .scrape-modal-error {
+            color: #ff6666;
+            font-size: 1.2vh;
+            min-height: 1.6vh;
+        }
         
         /* ヘルプモーダル ページネーション */
         .modal-content {
@@ -1080,10 +1188,11 @@
             color: #ff6666;
             font-size: 1.2vh;
             margin-top: 0.5vh;
-            display: none;
+            min-height: 1.6vh;
+            visibility: hidden;
         }
         #password-modal-container .error-message.show {
-            display: block;
+            visibility: visible;
         }
         #party-overview-container {
             width: auto;
@@ -1170,6 +1279,15 @@
             <div class="header-dictionary-container">
                 <button id="dictionary-button" class="header-button">辞</button>
                 <div class="dictionary-button-label">辞書</div>
+            </div>
+            <div class="header-scrape-container">
+                <button id="scrape-button" class="header-button" aria-haspopup="true" aria-expanded="false">実</button>
+                <div class="scrape-button-label">実行</div>
+                <div class="scrape-dropdown" id="scrape-dropdown" role="menu">
+                    <button type="button" data-action="full" role="menuitem">全体スクレイピング</button>
+                    <button type="button" data-action="partial" role="menuitem">部分スクレイピング</button>
+                    <button type="button" data-action="analysis" role="menuitem">指定解析のみ</button>
+                </div>
             </div>
             <div class="header-overview-container">
                 <button id="overview-button" class="header-button">一</button>
@@ -1357,6 +1475,9 @@
                     <div class="modal-links">
                         <p><a href="https://twitter.com/by_kanikama" target="_blank" rel="noopener noreferrer">制作者X</a></p>
                         <p><a href="https://discord.gg/bq5E38HUec" target="_blank" rel="noopener noreferrer">エリたまDiscord</a>（誰でも歓迎！）</p>
+                        <p><a href="https://github.com/fuyuyu0111/elitama-generator" target="_blank" rel="noopener noreferrer">GitHubリポジトリ</a>(ソースコード)</p>
+                        <button id="install-app-button" class="control-button" type="button" style="display: none;">ホームに追加</button>
+                        <button id="open-bug-report-button" class="control-button" type="button">不具合報告フォームへ</button>
                     </div>
                 </div>
 
@@ -1441,6 +1562,9 @@
                     
                     <h3>並び替え</h3>
                     <p>「ID」「属性」「所属」「たいりょく」「こうげき」「やるき」「おおきさ」「いどう」「攻撃はんい」「攻撃きょり」で並び替えられます。「降順」ボタンで昇順/降順を切り替えられます。</p>
+                    
+                    <h3>アイコン長押しプレビュー</h3>
+                    <p>エイリアン一覧画面で、エイリアンのアイコンを長押しすると、そのエイリアンを現在のパーティに追加した場合のプレビューが表示されます。プレビューでは個性の発動条件がリアルタイムで判定され、スキルの詳細も確認できます。プレビューを閉じるには、画面外をタップするか、ESCキーを押してください。</p>
                 </div>
 
                 <!-- ページ6: バフ・デバフ絞り込み -->
@@ -1497,6 +1621,23 @@
                         <li><strong>デバフ(状態異常)系</strong>：能力値ダウン、毒付与、気絶付与などのデバフ・状態異常効果</li>
                     </ul>
                 </div>
+
+                <!-- ページ8: 不具合報告 -->
+                <div class="help-page" data-page="8" style="display: none;">
+                    <h2>不具合報告</h2>
+                    <p class="modal-overview">
+                        不具合やミスの報告を匿名で制作者に送信できます。内容はDiscordに転送されるため返信はありません。気軽に報告してください。
+                    </p>
+                    
+                    <div id="bug-report-form" style="margin-top: 2vh;">
+                        <div style="margin-bottom: 1.5vh;">
+                            <label for="bug-report-text" style="display: block; margin-bottom: 0.5vh; font-weight: bold;">不具合の内容</label>
+                            <textarea id="bug-report-text" style="width: 100%; min-height: 10vh; padding: 0.8vh; font-size: 1.4vh; border: 1px solid #555; background-color: #2a3a4a; color: #fff; border-radius: 0.4vh; resize: vertical;" placeholder="具体的に不具合やミスを入力してください(例：〇〇の要求が間違っている、△△のバフで絞り込んでも〇〇が出てこない(もしくは〇〇が間違って出てくる)、機能が動作しないなど)"></textarea>
+                        </div>
+                        <button id="bug-report-submit" class="control-button" style="width: 100%; margin-top: 1vh;">報告を送信</button>
+                        <div id="bug-report-status" style="margin-top: 1vh; font-size: 1.2vh; color: #aaa; display: none;"></div>
+                    </div>
+                </div>
                 </div>
 
                 <!-- ページネーションコントロール -->
@@ -1522,6 +1663,12 @@
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingMessage = document.getElementById('loading-message');
         const mainContent = document.getElementById('main-content');
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/js/service-worker.js').catch((error) => {
+                console.error('Service worker registration failed:', error);
+            });
+        }
 
         // --- プリロード対象の画像URLを収集 ---
         const allCards = document.querySelectorAll('.alien-card');
@@ -1582,8 +1729,45 @@
     // ==========================================================================
     //  アプリケーション本体のJavaScript
     // ==========================================================================
-    
 // --- グローバル変数とDOM要素の取得 ---
+    let deferredInstallPrompt = null;
+    let installButtonElement = null;
+
+    const isStandaloneDisplayMode = () => {
+        return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    };
+
+    function updateInstallButtonVisibility() {
+        if (!installButtonElement) {
+            return;
+        }
+        if (isStandaloneDisplayMode()) {
+            installButtonElement.style.display = 'none';
+            return;
+        }
+        installButtonElement.style.display = deferredInstallPrompt ? 'block' : 'none';
+    }
+
+    const standaloneMediaQuery = window.matchMedia ? window.matchMedia('(display-mode: standalone)') : null;
+    if (standaloneMediaQuery) {
+        if (typeof standaloneMediaQuery.addEventListener === 'function') {
+            standaloneMediaQuery.addEventListener('change', updateInstallButtonVisibility);
+        } else if (typeof standaloneMediaQuery.addListener === 'function') {
+            standaloneMediaQuery.addListener(updateInstallButtonVisibility);
+        }
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        updateInstallButtonVisibility();
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        updateInstallButtonVisibility();
+    });
+
     const ALL_ALIENS = {{ all_aliens | tojson | safe }};
     const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
     const ALL_EFFECTS = {{ all_effects | tojson | safe }};
@@ -1732,7 +1916,7 @@
                 'A': '海', 'B': '夜', 'C': '氷', 'D': 'ラブ', 'E': '空',
                 'F': '音', 'G': '魔術', 'H': '熱', 'I': '大和', 'J': 'エレメント',
                 'K': '新星', 'L': 'チケット', 'M': '突然変異', 'N': '競技', 'O': '盗賊',
-                'P': '祈祷', 'Q': '闇', 'AA': 'パックマンシリーズまたはカタログIP'
+                'P': '祈祷', 'Q': '闇', 'AA': 'パックマンシリーズまたはカタログIP', 'AW': 'リゼロ(eAW)'
             };
             return types[value] || value;
         }
@@ -2215,7 +2399,6 @@
             }
         });
     }
-
     /**
      * パーティスロット用のアクションボタンを作成（管理モード時は管理ボタン、通常時は編成解除ボタン）
      * @param {boolean} isAdminMode - 管理モードかどうか
@@ -2830,7 +3013,6 @@
             dragState.currentHoverIdx = hoverIdx;
         }
     }
-    
     function handleDragEnd(e) {
         if (!dragState.active) return;
         
@@ -3390,7 +3572,6 @@
 
         updateFilterUIState();
     }
-
     /**
      * 絞り込み用のボタンを動的に生成する
      */
@@ -3401,7 +3582,7 @@
             attack_area: { containerId: 'filter-section-attack_area', label: '攻撃はんい', prefix: 'c', count: 2 },
             attack_range: { containerId: 'filter-section-attack_range', label: '攻撃きょり', prefix: 'd', count: 3 },
             role: { containerId: 'filter-section-role', label: 'ロール', prefix: 'f', count: 4 },
-            types: { containerId: 'filter-section-types', label: 'タイプ', prefix: 'e', values: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','AA','AB','AC','AD','AH','AI','AJ','AK','AL','AM','AN','AO','AP','AQ','AR','AS','AT','AU','AV'] }
+            types: { containerId: 'filter-section-types', label: 'タイプ', prefix: 'e', values: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','AA','AB','AC','AD','AH','AI','AJ','AK','AL','AM','AN','AO','AP','AQ','AR','AS','AT','AU','AV','AW'] }
         };
 
         for (const [key, config] of Object.entries(filters)) {
@@ -3778,12 +3959,10 @@
                 // フィルターを適用
                 applyFilters();
             });
-            
             // フィルターオプション（階層構造）
             const optionsDiv = document.createElement('div');
             optionsDiv.className = 'filter-options effect-options';
             effectsSection.appendChild(optionsDiv);
-            
             // 効果ボタン生成関数（個性/特技で共通）
             function renderEffectButtons(container, effects, tabType) {
                 // 既存のボタンをクリア
@@ -4175,10 +4354,8 @@
                 // サブカテゴリの折りたたみ機能を設定
                 setTimeout(setupSubCategoryCollapse, 0);
             }
-            
             // イベントリスナーを設定
             let currentExpandedButton = null; // 現在展開中のボタン
-            
             // 効果ボタンのイベントリスナー設定用関数
             function setupEffectButtonListeners(buttons) {
                 buttons.forEach(btn => {
@@ -4820,7 +4997,6 @@
             }
         }
     });
-
     // --- ドロワーの開閉 ---
     function openDrawerWithHistory() {
         drawer.classList.add('open');
@@ -4831,7 +5007,6 @@
             drawer.dataset.historyAdded = 'true';
         }
     }
-    
     function closeDrawerWithoutHistory() {
         drawer.classList.remove('open');
         toggleButton.textContent = '▶';
@@ -5397,14 +5572,102 @@
         }
     });
     
+    // 不具合報告フォームの送信処理
+    const bugReportSubmit = document.getElementById('bug-report-submit');
+    const bugReportText = document.getElementById('bug-report-text');
+    const bugReportStatus = document.getElementById('bug-report-status');
+    
+    if (bugReportSubmit && bugReportText && bugReportStatus) {
+        bugReportSubmit.addEventListener('click', async () => {
+            const text = bugReportText.value.trim();
+            
+            if (!text) {
+                bugReportStatus.textContent = '報告内容を入力してください';
+                bugReportStatus.style.display = 'block';
+                bugReportStatus.style.color = '#ff6666';
+                return;
+            }
+            
+            // 送信ボタンを無効化
+            bugReportSubmit.disabled = true;
+            bugReportSubmit.textContent = '送信中...';
+            bugReportStatus.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/bug-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    bugReportStatus.textContent = '報告を送信しました。ありがとうございます！';
+                    bugReportStatus.style.display = 'block';
+                    bugReportStatus.style.color = '#66ff66';
+                    bugReportText.value = '';
+                } else {
+                    bugReportStatus.textContent = `エラー: ${data.error || '送信に失敗しました'}`;
+                    bugReportStatus.style.display = 'block';
+                    bugReportStatus.style.color = '#ff6666';
+                }
+            } catch (error) {
+                bugReportStatus.textContent = 'エラー: 通信に失敗しました';
+                bugReportStatus.style.display = 'block';
+                bugReportStatus.style.color = '#ff6666';
+            } finally {
+                bugReportSubmit.disabled = false;
+                bugReportSubmit.textContent = '報告を送信';
+            }
+        });
+    }
+    
+    installButtonElement = document.getElementById('install-app-button');
+    if (installButtonElement) {
+        installButtonElement.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) {
+                alert('ブラウザの共有メニューから「ホーム画面に追加」を選択してください。');
+                return;
+            }
+            installButtonElement.disabled = true;
+            try {
+                deferredInstallPrompt.prompt();
+                await deferredInstallPrompt.userChoice;
+            } catch (error) {
+                console.error('Install prompt error:', error);
+            } finally {
+                installButtonElement.disabled = false;
+                deferredInstallPrompt = null;
+                updateInstallButtonVisibility();
+            }
+        });
+    }
+    updateInstallButtonVisibility();
+    
     // ヘルプモーダルを開いた時に1ページ目にリセット
     const helpButtonHandler = () => {
         openModalWithHistory();
         showHelpPage(1);
+        updateInstallButtonVisibility();
     };
     helpButton.addEventListener('click', helpButtonHandler);
     document.querySelector('.help-button-label').addEventListener('click', helpButtonHandler);
-    
+    const bugReportJumpButton = document.getElementById('open-bug-report-button');
+    const bugReportPageElement = document.querySelector('.help-page[data-page="8"]');
+    const bugReportPageNumber = bugReportPageElement ? Number(bugReportPageElement.dataset.page) : null;
+    if (bugReportJumpButton && bugReportPageNumber) {
+        bugReportJumpButton.addEventListener('click', () => {
+            helpButtonHandler();
+            showHelpPage(bugReportPageNumber);
+            const bugTextArea = document.getElementById('bug-report-text');
+            if (bugTextArea) {
+                bugTextArea.focus();
+            }
+        });
+    }
     // 初期化時にドットを生成
     updateHelpPageDots();
     closeModalButton.addEventListener('click', () => {
@@ -5417,7 +5680,6 @@
             history.back(); // 履歴を戻す
         }
     });
-
     // --- パーティ切り替えボタン ---
     prevPartyBtn.addEventListener('click', () => switchParty('prev'));
     nextPartyBtn.addEventListener('click', () => switchParty('next'));
@@ -5528,6 +5790,149 @@
     // ==========================================================================
     //  管理モード関連の関数
     // ==========================================================================
+    
+    let isScrapeMenuOpen = false;
+    
+    function setScrapeMenu(open) {
+        const container = document.querySelector('.header-scrape-container');
+        const dropdown = document.getElementById('scrape-dropdown');
+        const button = document.getElementById('scrape-button');
+        isScrapeMenuOpen = !!open;
+        if (!container || !dropdown || !button) {
+            return;
+        }
+        if (container.style.display === 'none') {
+            isScrapeMenuOpen = false;
+        }
+        container.classList.toggle('active-menu', isScrapeMenuOpen);
+        dropdown.classList.toggle('open', isScrapeMenuOpen);
+        button.setAttribute('aria-expanded', isScrapeMenuOpen ? 'true' : 'false');
+    }
+    
+    function parseIdInput(rawValue) {
+        if (!rawValue) {
+            return [];
+        }
+        const sanitized = rawValue.replace(/[、\s]/g, '');
+        if (!sanitized) {
+            return [];
+        }
+        const ids = new Set();
+        const tokens = sanitized.split(',');
+        for (const token of tokens) {
+            if (!token) continue;
+            if (token.includes('-')) {
+                const parts = token.split('-');
+                if (parts.length !== 2) {
+                    throw new Error('IDの形式が正しくありません (例: 1601,1603-1605)');
+                }
+                const start = Number(parts[0]);
+                const end = Number(parts[1]);
+                if (!Number.isInteger(start) || !Number.isInteger(end)) {
+                    throw new Error('IDは整数で入力してください');
+                }
+                const step = start <= end ? 1 : -1;
+                for (let current = start; current !== end + step; current += step) {
+                    ids.add(current);
+                }
+            } else {
+                const value = Number(token);
+                if (!Number.isInteger(value)) {
+                    throw new Error('IDは整数で入力してください');
+                }
+                ids.add(value);
+            }
+        }
+        return Array.from(ids).sort((a, b) => a - b);
+    }
+    
+    function openScrapeInputModal({ title, description, placeholder, submitLabel = '実行', onSubmit }) {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.style.display = 'flex';
+        
+        const content = document.createElement('div');
+        content.className = 'scrape-modal-content';
+        content.innerHTML = `
+            <h3>${title}</h3>
+            <p>${description}</p>
+            <input type="text" id="scrape-modal-input" placeholder="${placeholder}" autocomplete="off">
+            <div class="scrape-modal-error" id="scrape-modal-error"></div>
+            <div class="scrape-modal-actions">
+                <button type="button" class="control-button" data-role="cancel">キャンセル</button>
+                <button type="button" class="control-button" data-role="submit">${submitLabel}</button>
+            </div>
+        `;
+        
+        overlay.appendChild(content);
+        document.body.appendChild(overlay);
+        
+        const input = content.querySelector('#scrape-modal-input');
+        const errorLabel = content.querySelector('#scrape-modal-error');
+        const cancelButton = content.querySelector('button[data-role="cancel"]');
+        const submitButton = content.querySelector('button[data-role="submit"]');
+        
+        const cleanup = () => {
+            document.removeEventListener('keydown', handleKeydown);
+            overlay.remove();
+        };
+        
+        const handleKeydown = (event) => {
+            if (event.key === 'Escape') {
+                cleanup();
+            }
+            if (event.key === 'Enter' && !event.isComposing) {
+                event.preventDefault();
+                handleSubmit();
+            }
+        };
+        
+        const handleSubmit = async () => {
+            const rawValue = input.value.trim();
+            let ids = [];
+            try {
+                ids = parseIdInput(rawValue);
+            } catch (error) {
+                errorLabel.textContent = error.message || 'IDの形式が正しくありません';
+                return;
+            }
+            if (ids.length === 0) {
+                errorLabel.textContent = '1つ以上のIDを入力してください';
+                return;
+            }
+            
+            errorLabel.textContent = '';
+            submitButton.disabled = true;
+            cancelButton.disabled = true;
+            try {
+                await onSubmit(ids);
+                cleanup();
+            } catch (error) {
+                submitButton.disabled = false;
+                cancelButton.disabled = false;
+                errorLabel.textContent = error.message || 'エラーが発生しました';
+            }
+        };
+        
+        cancelButton.addEventListener('click', cleanup);
+        submitButton.addEventListener('click', handleSubmit);
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                cleanup();
+            }
+        });
+        document.addEventListener('keydown', handleKeydown);
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.isComposing) {
+                event.preventDefault();
+                handleSubmit();
+            }
+        });
+        
+        setTimeout(() => {
+            input.focus();
+        }, 0);
+    }
     
     /**
      * 効果名ごとの使用数を取得
@@ -5780,6 +6185,7 @@
         const header = document.getElementById('main-header');
         const title = document.getElementById('header-title');
         const dictionaryBtn = document.querySelector('.header-dictionary-container');
+        const scrapeContainer = document.querySelector('.header-scrape-container');
         const unregisteredTab = document.getElementById('unregistered-effects-tab');
         const body = document.body;
         
@@ -5790,6 +6196,7 @@
             title.classList.toggle('has-changes', pendingChanges.length > 0);
             title.classList.toggle('disabled', pendingChanges.length === 0);
             if (dictionaryBtn) dictionaryBtn.style.display = 'flex';
+            if (scrapeContainer) scrapeContainer.style.display = 'flex';
             if (unregisteredTab) unregisteredTab.style.display = '';
         } else {
             header.classList.remove('admin-mode');
@@ -5797,8 +6204,13 @@
             title.textContent = 'エリジェネ';
             title.classList.remove('has-changes', 'disabled');
             if (dictionaryBtn) dictionaryBtn.style.display = 'none';
+            if (scrapeContainer) {
+                scrapeContainer.style.display = 'none';
+                scrapeContainer.classList.remove('active-menu');
+            }
             if (unregisteredTab) unregisteredTab.style.display = 'none';
         }
+        setScrapeMenu(false);
         
         // パーティスロットを再描画して管理ボタンの状態を更新
         renderAllParties();
@@ -5813,7 +6225,6 @@
         // 注意: renderEffectButtonsはローカル関数なので、ここでは直接呼び出せない
         // 必要に応じて、バフデバフ画面を開き直すか、イベントを発火する
     }
-    
     /**
      * ターゲット選択モーダルのHTMLを生成（共通関数）
      */
@@ -5909,7 +6320,6 @@
                 </div>
             </div>`;
     }
-    
     /**
      * 不整合データをチェック（詳細情報付き）
      * @returns {Object|null} 不整合がある場合、{skillType, effectIndex, invalidFields} を返す。ない場合はnull
@@ -6440,7 +6850,6 @@
             openEffectReplaceModal(effectName);
         }
     };
-    
     /**
      * 効果置換モーダルを開く
      */
@@ -6954,7 +7363,6 @@
             await applyChangesInternal();
         }
     }
-    
     /**
      * 変更を実際に適用する（内部関数）
      */
@@ -7209,6 +7617,112 @@
     document.getElementById('admin-button').addEventListener('click', adminButtonHandler);
     document.querySelector('.admin-button-label').addEventListener('click', adminButtonHandler);
     
+    const scrapeToggleButton = document.getElementById('scrape-button');
+    const scrapeLabelButton = document.querySelector('.scrape-button-label');
+    const scrapeDropdown = document.getElementById('scrape-dropdown');
+    const scrapeContainerEl = document.querySelector('.header-scrape-container');
+    
+    async function runScrapeRequest(endpoint, payload = null) {
+        const button = document.getElementById('scrape-button');
+        const label = document.querySelector('.scrape-button-label');
+        const originalLabel = label ? label.textContent : '';
+        if (button) button.disabled = true;
+        if (label) label.textContent = '実行中...';
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: payload ? {'Content-Type': 'application/json'} : undefined,
+                body: payload ? JSON.stringify(payload) : undefined
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+            alert(data.message || '処理を開始しました。完了通知はDiscordで確認してください。');
+        } finally {
+            if (button) button.disabled = false;
+            if (label) label.textContent = originalLabel;
+        }
+    }
+    
+    function toggleScrapeMenu(event) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+        }
+        if (!isAdminMode) return;
+        setScrapeMenu(!isScrapeMenuOpen);
+    }
+    
+    function closeScrapeMenu() {
+        if (!isScrapeMenuOpen) return;
+        setScrapeMenu(false);
+    }
+    
+    async function triggerFullScrape() {
+        if (!isAdminMode) return;
+        closeScrapeMenu();
+        if (!confirm('全体スクレイピングを実行しますか？\nこの処理には時間がかかる場合があります。\n公式Wikiへの負荷が大きくなるため、必要な場合のみ実行してください。')) {
+            return;
+        }
+        try {
+            await runScrapeRequest('/api/admin/trigger-full-scrape');
+        } catch (error) {
+            alert(`エラー: ${error.message || error}`);
+        }
+    }
+    
+    function triggerPartialScrape() {
+        if (!isAdminMode) return;
+        closeScrapeMenu();
+        openScrapeInputModal({
+            title: '部分スクレイピング',
+            description: 'スクレイピングしたい図鑑No.を入力してください（例: 1601,1603-1605）。指定したIDは逆順スクレイピングとは別に強制取得します。',
+            placeholder: '例: 1611,1614-1617',
+            submitLabel: 'スクレイプ',
+            onSubmit: (ids) => runScrapeRequest('/api/admin/trigger-partial-scrape', { ids })
+        });
+    }
+    
+    function triggerAnalysisOnly() {
+        if (!isAdminMode) return;
+        closeScrapeMenu();
+        openScrapeInputModal({
+            title: '指定解析のみ実行',
+            description: 'LLM解析を再実行したい図鑑No.を入力してください。スクレイピングは行わず、既存データを元に解析のみを実行します。',
+            placeholder: '例: 1611-1613,1615',
+            submitLabel: '解析',
+            onSubmit: (ids) => runScrapeRequest('/api/admin/trigger-analysis-only', { ids })
+        });
+    }
+    
+    if (scrapeToggleButton) {
+        scrapeToggleButton.addEventListener('click', toggleScrapeMenu);
+    }
+    if (scrapeLabelButton) {
+        scrapeLabelButton.addEventListener('click', toggleScrapeMenu);
+    }
+    if (scrapeDropdown) {
+        scrapeDropdown.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-action]');
+            if (!button) return;
+            event.stopPropagation();
+            const action = button.dataset.action;
+            if (action === 'full') {
+                triggerFullScrape();
+            } else if (action === 'partial') {
+                triggerPartialScrape();
+            } else if (action === 'analysis') {
+                triggerAnalysisOnly();
+            }
+        });
+    }
+    document.addEventListener('click', (event) => {
+        if (!isScrapeMenuOpen) return;
+        if (scrapeContainerEl && scrapeContainerEl.contains(event.target)) return;
+        closeScrapeMenu();
+    });
+    
     // 変更適応ボタン（ヘッダータイトル）のイベントリスナー
     document.getElementById('header-title').addEventListener('click', () => {
         if (isAdminMode && pendingChanges.length > 0) {
@@ -7435,7 +7949,6 @@
         
         renderSkillManagementEffects(content, skillText, effects, alienData, skillType);
     }
-    
     /**
      * 効果管理リストを描画
      */
@@ -8081,7 +8594,6 @@
                     }
                 });
             };
-            
             // 要求表示を更新する関数
             const updateNewSlotRequirementDisplay = () => {
                 const requirementContainer = newSlot.querySelector('#new-slot-requirement-selector');
@@ -8391,7 +8903,6 @@
                 newSlot.remove();
             });
         };
-        
         // インデックスベースの編集関数
         window.editEffectByIndex = (text, index, name) => {
             // containerとalienDataを再取得
@@ -8883,7 +9394,6 @@
                     }
                 });
             };
-            
             // 要求選択モーダル（addNewEffectと同じ、名前を変更）
             const openEditSlotRequirementSelector = () => {
                 let tempSelectedRequirements = [...editSlotSelectedRequirements];

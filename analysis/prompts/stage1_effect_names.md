@@ -145,6 +145,13 @@
         * 正しい例: 「味方に銀河同盟がいると、自分のたいりょくとつよさを130%アップし、昆虫/機械/ナゾ属性に与えるダメージを200%アップ」→ たいりょくアップ: `has_requirement: true`, `target: "自分"` / つよさアップ: `has_requirement: true`, `target: "自分"` / 与ダメージアップ: `has_requirement: true`, `target: "自分"`, `condition_target: "a:2,a:3,a:4"`
         * 間違い: 「自分が10回攻撃すると味方全員の与ダメージがアップ」→ `has_requirement: false`（「10回攻撃」は状態依存条件）
         * 間違い: 「敵エイリアンが残り2体以下になると」→ `has_requirement: false`（敵の状態依存条件は編成条件ではない）
+* **重要: 新フォーマットの段階的要求の扱いについて**:
+    * 「味方に〇〇が1体いると、A効果！2体以上いると、さらにB効果！」のように、同じ文章の中で**要求数が段階的に増える場合**は、それぞれ別の効果として抽出し、要求数を正確に設定してください。
+        * 例: 「味方に機械属性が1体いると、たいりょくを200%アップ！2体以上いると、さらに40%アップ！」→ たいりょくアップ(200%): `has_requirement: true`, `requirement_details: "a:3"`, `requirement_count: 1` / たいりょくアップ(40%): `has_requirement: true`, `requirement_details: "a:3"`, `requirement_count: 2`
+    * 「味方に〇〇が△体以上いると、A効果。さらにもう一体いると、B効果」のような形式の場合、**B効果は要求数が△+1体**になります。
+        * 例: 「味方に動物属性が2体以上いると、つよさを100%アップ。さらにもう一体いると、与ダメージを50%アップ」→ つよさアップ: `has_requirement: true`, `requirement_details: "a:1"`, `requirement_count: 2` / 与ダメージアップ: `has_requirement: true`, `requirement_details: "a:1"`, `requirement_count: 3`
+        * 例: 「味方に昆虫属性がいると、たいりょくを120%アップ。さらにもう一体いると、つよさを130%アップ」→ たいりょくアップ: `has_requirement: true`, `requirement_details: "a:2"`, `requirement_count: 1` / つよさアップ: `has_requirement: true`, `requirement_details: "a:2"`, `requirement_count: 2`
+    * **「さらにもう一体いると」「2体以上いると」「さらに〇〇アップ」などの表現は、前段の要求に対して+1体、または明記された数値へ更新した新しい効果として扱ってください**。
 4.  `requirement_details` 
     * `category:value` の形式で結合してください。
     * **「〇〇以外」の場合**: 値の末尾に `!` を付けてください（例: "d:3!" = とおい以外、"a:2!" = 昆虫属性以外）。

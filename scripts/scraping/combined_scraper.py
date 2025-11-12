@@ -28,15 +28,15 @@ CONVERSION_MAP = full_scraper.CONVERSION_MAP
 get_db_connection = full_scraper.get_db_connection
 get_image_filename = full_scraper.get_image_filename
 get_total_pages = full_scraper.get_total_pages
-get_detail_urls_from_page = full_scraper.get_detail_urls_from_page
+get_detail_entries_from_page = full_scraper.get_detail_entries_from_page
 scrape_alien_data = full_scraper.scrape_alien_data
 upsert_alien_to_db = full_scraper.upsert_alien_to_db
 
-# image_scraper.pyから必要な関数をインポート
+# 画像ダウンロード機能（統合済み）
 # パスの解決
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
-SAVE_DIRECTORY = os.path.join(PROJECT_ROOT, 'static', 'images', 'aliens')
+SAVE_DIRECTORY = os.path.join(PROJECT_ROOT, 'static', 'images')
 
 
 def download_image(session, image_url, save_path):
@@ -65,6 +65,138 @@ def get_existing_alien_ids(conn) -> Set[int]:
         return set()
 
 
+def get_latest_alien_id_from_db(conn) -> Optional[int]:
+    """データベースから最新のエイリアンIDを取得"""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(id) FROM alien")
+            result = cur.fetchone()
+            return result[0] if result and result[0] else None
+    except Exception as e:
+        print(f"最新ID取得エラー: {e}")
+        return None
+
+
+def get_latest_alien_id_from_last_page(session, list_page_base_url: str, total_pages: int) -> Optional[int]:
+    """最後のページから最新のエイリアンIDを取得"""
+    try:
+        last_page_url = f"{list_page_base_url}{total_pages}"
+        print(f"最後のページ（{total_pages}ページ目）から最新エイリアンIDを取得中...")
+        response = session.get(last_page_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        alien_table = soup.find('table', class_='data-list')
+        if not alien_table:
+            return None
+        
+        max_id = 0
+        for row in alien_table.find_all('tr'):
+            if row.find('th'):
+                continue
+            cells = row.find_all('td')
+            if len(cells) >= 2:
+                no_text = cells[1].text.strip()
+                try:
+                    alien_id = int(no_text.replace('No.', '').strip())
+                    max_id = max(max_id, alien_id)
+                except ValueError:
+                    continue
+        
+        return max_id if max_id > 0 else None
+    except Exception as e:
+        print(f"最新ID取得エラー: {e}")
+        return None
+
+
+def scrape_new_aliens_reverse_order(
+    session,
+    conn,
+    list_page_base_url: str,
+    total_pages: int,
+    website_latest_id: int,
+    db_latest_id: int,
+    skip_images: bool = False
+) -> Tuple[int, int, List[int], int]:
+    """最新から逆順に新キャラをスクレイピング（一覧ページの並びを基準に処理）"""
+    new_count = 0
+    updated_count = 0
+    new_alien_ids = []
+    images_downloaded_total = 0
+    image_url_map: Dict[int, Optional[str]] = {}
+    
+    print(f"\n--- 逆順スクレイピング開始 ---")
+    print(f"データベース最新ID: {db_latest_id}")
+    print(f"サイト最新ID: {website_latest_id}")
+    
+    if website_latest_id <= db_latest_id:
+        print("新しいエイリアンはありません。")
+        return (0, 0, [], 0)
+    
+    stop_scraping = False
+    
+    for page in range(total_pages, 0, -1):
+        page_url = f"{list_page_base_url}{page}"
+        entries = get_detail_entries_from_page(session, page_url)
+        if not entries:
+            continue
+        
+        # 図鑑No.の大きい順に処理する（一覧は昇順のため逆順にする）
+        for entry in sorted(entries, key=lambda e: e.get('id') or 0, reverse=True):
+            alien_id = entry.get('id')
+            if not alien_id:
+                continue
+            
+            if alien_id <= db_latest_id:
+                stop_scraping = True
+                break
+            
+            detail_url = entry['detail_url']
+            icon_url = entry.get('icon_url')
+            
+            print(f"エイリアンNo.{alien_id} をチェック中...")
+            alien_data = scrape_alien_data(session, detail_url)
+            
+            if not alien_data or not alien_data.get('id'):
+                print("  -> データ取得に失敗、またはID不明のためスキップします。")
+                continue
+            
+            scraped_id = int(alien_data['id'])
+            if scraped_id != alien_id:
+                print(f"  -> 取得したID({scraped_id})が一覧のID({alien_id})と一致しません。スキップします。")
+                continue
+            
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM alien WHERE id = %s", (alien_id,))
+                existed = cur.fetchone() is not None
+            
+            upsert_alien_to_db(conn, alien_data)
+            conn.commit()
+            
+            if icon_url:
+                save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.png")
+                if not os.path.exists(save_filepath):
+                    image_url_map[alien_id] = icon_url
+            
+            if existed:
+                updated_count += 1
+                print(f"  -> エイリアンNo.{alien_id} を更新しました")
+            else:
+                new_count += 1
+                new_alien_ids.append(alien_id)
+                print(f"  -> エイリアンNo.{alien_id} を新規追加しました")
+            
+            time.sleep(1)
+        
+        if stop_scraping:
+            break
+    
+    images_downloaded_total = 0
+    if not skip_images:
+        images_downloaded_total = download_images_for_new_aliens(session, {k: v for k, v in image_url_map.items() if v})
+    return (new_count, updated_count, new_alien_ids, images_downloaded_total)
+
+
 def scrape_images_for_aliens(session, base_url_domain, alien_ids: List[int]) -> int:
     """指定されたエイリアンIDの画像をダウンロード"""
     if not alien_ids:
@@ -90,81 +222,22 @@ def scrape_images_for_aliens(session, base_url_domain, alien_ids: List[int]) -> 
     return downloaded_count
 
 
-def get_images_from_list_page(session, list_page_url: str, alien_ids: Set[int]) -> Dict[int, str]:
-    """
-    一覧ページからエイリアンIDと画像URLのマッピングを取得
-    Returns: {alien_id: image_url}
-    """
-    try:
-        response = session.get(list_page_url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        base_url_domain = f"{urlparse(list_page_url).scheme}://{urlparse(list_page_url).netloc}"
-        image_map = {}
-        
-        alien_table = soup.find('table', class_='data-list')
-        if not alien_table:
-            return image_map
-        
-        for row in alien_table.find_all('tr'):
-            if row.find('th'):
-                continue
-            
-            cells = row.find_all('td')
-            if len(cells) == 3:
-                img_tag = cells[0].find('img')
-                no_text = cells[1].text.strip()
-                
-                if img_tag and 'src' in img_tag.attrs and no_text:
-                    try:
-                        alien_id = int(no_text.replace('No.', '').strip())
-                        if alien_id in alien_ids:
-                            relative_img_url = img_tag['src']
-                            full_image_url = urljoin(base_url_domain, relative_img_url)
-                            image_map[alien_id] = full_image_url
-                    except ValueError:
-                        continue
-        
-        return image_map
-    except Exception as e:
-        print(f"一覧ページからの画像URL取得エラー: {e}")
-        return {}
-
-
 def download_images_for_new_aliens(
-    session, 
-    list_page_base_url: str, 
-    total_pages: int,
-    new_alien_ids: List[int]
+    session,
+    image_url_map: Dict[int, str]
 ) -> int:
-    """新規エイリアンの画像をダウンロード"""
-    if not new_alien_ids:
+    """新規エイリアンの画像をダウンロード（詳細ページで取得したURLを利用）"""
+    if not image_url_map:
         return 0
     
-    new_alien_set = set(new_alien_ids)
     downloaded_count = 0
-    
-    # 保存先フォルダが存在しない場合は作成
     if not os.path.exists(SAVE_DIRECTORY):
         os.makedirs(SAVE_DIRECTORY)
         print(f"保存フォルダ '{SAVE_DIRECTORY}' を作成しました。")
     
-    print(f"\n--- 新規エイリアン画像ダウンロード開始（{len(new_alien_ids)}件）---")
-    
-    # 全ページから新規エイリアンの画像URLを取得
-    all_image_map = {}
-    for page in range(1, total_pages + 1):
-        page_url = f"{list_page_base_url}{page}"
-        print(f"  [{page}/{total_pages}ページ目] 画像URLを収集中...")
-        page_image_map = get_images_from_list_page(session, page_url, new_alien_set)
-        all_image_map.update(page_image_map)
-        
-        if page < total_pages:
-            time.sleep(1)
-    
-    # 画像をダウンロード
-    for alien_id, image_url in all_image_map.items():
+    print(f"\n--- 新規エイリアン画像ダウンロード開始（{len(image_url_map)}件）---")
+
+    for alien_id, image_url in image_url_map.items():
         save_filename = f"{alien_id}.png"
         save_filepath = os.path.join(SAVE_DIRECTORY, save_filename)
         
@@ -182,21 +255,106 @@ def download_images_for_new_aliens(
     return downloaded_count
 
 
+def scrape_specific_aliens(
+    session,
+    conn,
+    list_page_base_url: str,
+    total_pages: int,
+    target_ids: List[int],
+    skip_images: bool = False
+) -> Tuple[int, int, List[int], int]:
+    """指定IDのエイリアンのみスクレイピング"""
+    if not target_ids:
+        return (0, 0, [], 0)
+    
+    target_set = set(target_ids)
+    detail_map: Dict[int, Dict[str, Optional[str]]] = {}
+    
+    print(f"\n--- 指定IDスクレイピング開始 ({len(target_ids)}件) ---")
+    for page in range(1, total_pages + 1):
+        if not target_set:
+            break
+        page_url = f"{list_page_base_url}{page}"
+        entries = get_detail_entries_from_page(session, page_url)
+        if not entries:
+            continue
+        
+        for entry in entries:
+            alien_id = entry.get('id')
+            if alien_id in target_set:
+                detail_map[alien_id] = entry
+                target_set.remove(alien_id)
+        time.sleep(1)
+    
+    if target_set:
+        print(f"  -> 警告: 以下のIDは一覧から見つかりませんでした: {sorted(target_set)}")
+    
+    new_count = 0
+    updated_count = 0
+    new_alien_ids: List[int] = []
+    image_url_map: Dict[int, str] = {}
+    
+    for alien_id in sorted(detail_map.keys()):
+        entry = detail_map[alien_id]
+        detail_url = entry.get('detail_url')
+        icon_url = entry.get('icon_url')
+        
+        if not detail_url:
+            print(f"  -> エイリアンNo.{alien_id} の詳細URLが不明なためスキップします。")
+            continue
+        
+        print(f"エイリアンNo.{alien_id} を取得中...")
+        alien_data = scrape_alien_data(session, detail_url)
+        if not alien_data or not alien_data.get('id'):
+            print("  -> データ取得に失敗、またはID不明のためスキップします。")
+            continue
+        
+        scraped_id = int(alien_data['id'])
+        if scraped_id != alien_id:
+            print(f"  -> 取得したID({scraped_id})が指定したID({alien_id})と一致しません。スキップします。")
+            continue
+        
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM alien WHERE id = %s", (alien_id,))
+            existed = cur.fetchone() is not None
+        
+        upsert_alien_to_db(conn, alien_data)
+        conn.commit()
+        
+        if not skip_images and icon_url:
+            save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.png")
+            if not os.path.exists(save_filepath):
+                image_url_map[alien_id] = icon_url
+        
+        if existed:
+            updated_count += 1
+            print(f"  -> エイリアンNo.{alien_id} を更新しました")
+        else:
+            new_count += 1
+            new_alien_ids.append(alien_id)
+            print(f"  -> エイリアンNo.{alien_id} を新規追加しました")
+        
+        time.sleep(1)
+    
+    images_downloaded_total = 0
+    if not skip_images and image_url_map:
+        images_downloaded_total = download_images_for_new_aliens(session, image_url_map)
+    
+    return (new_count, updated_count, new_alien_ids, images_downloaded_total)
+
+
 def main(
     input_url: str,
     skip_images: bool = False,
-    only_new: bool = True
-) -> Tuple[int, int, List[int]]:
+    only_new: bool = True,
+    reverse_order: bool = False,
+    specific_ids: Optional[List[int]] = None
+) -> Tuple[int, int, List[int], int]:
     """
     メイン処理: スクレイピングと画像取得を実行
     
-    Args:
-        input_url: スクレイピング開始URL
-        skip_images: Trueの場合、画像取得をスキップ
-        only_new: Trueの場合、新規・更新データのみ処理
-    
     Returns:
-        (新規追加数, 更新数, 新規エイリアンIDリスト)
+        (新規追加数, 更新数, 新規エイリアンIDリスト, ダウンロードした画像数)
     """
     parsed_url = urlparse(input_url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}?"
@@ -205,31 +363,20 @@ def main(
     base_query = '&'.join([f"{k}={v[0]}" for k, v in query_params.items()])
     list_page_base_url = f"{base_url}{base_query}&page="
     
-    base_url_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
-    
-    all_detail_urls = []
+    images_downloaded_total = 0
     new_count = 0
     updated_count = 0
-    new_alien_ids = []
+    new_alien_ids: List[int] = []
     
     conn = None
     try:
         conn = get_db_connection()
-        
-        # 既存IDを取得（only_newがTrueの場合）
-        existing_ids = set()
-        if only_new:
-            existing_ids = get_existing_alien_ids(conn)
-            print(f"既存エイリアン数: {len(existing_ids)}")
         
         with requests.Session() as session:
             session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             })
             
-            print("\n--- ステップ1: 全エイリアンの詳細URLを収集中 ---")
-            
-            # 総ページ数を取得
             first_page_url = f"{list_page_base_url}1"
             print("総ページ数を取得するために1ページ目にアクセスします...")
             try:
@@ -240,53 +387,110 @@ def main(
                 print(f"総ページ数: {total_pages} を確認しました。")
             except requests.exceptions.RequestException as e:
                 print(f"エラー: 1ページ目の取得に失敗しました。処理を中断します。\n{e}")
-                return (0, 0, [])
+                return (0, 0, [], 0)
             
-            # 全ページからURLを取得
+            specific_target_ids = sorted(set(specific_ids or []))
+            if specific_target_ids:
+                return scrape_specific_aliens(
+                    session,
+                    conn,
+                    list_page_base_url,
+                    total_pages,
+                    specific_target_ids,
+                    skip_images=skip_images
+                )
+            
+            if reverse_order:
+                db_latest_id = get_latest_alien_id_from_db(conn)
+                if db_latest_id is None:
+                    print("データベースにエイリアンが存在しません。全体スクレイピングを実行してください。")
+                    return (0, 0, [], 0)
+                
+                website_latest_id = get_latest_alien_id_from_last_page(session, list_page_base_url, total_pages)
+                if website_latest_id is None:
+                    print("サイトから最新IDを取得できませんでした。")
+                    return (0, 0, [], 0)
+                
+                new_count, updated_count, new_alien_ids, images_downloaded_total = scrape_new_aliens_reverse_order(
+                    session,
+                    conn,
+                    list_page_base_url,
+                    total_pages,
+                    website_latest_id,
+                    db_latest_id,
+                    skip_images=skip_images
+                )
+                
+                print(f"\nデータベースへの全ての変更をコミットしました。")
+                print(f"新規追加: {new_count}件, 更新: {updated_count}件")
+                
+                return (new_count, updated_count, new_alien_ids, images_downloaded_total)
+            
+            existing_ids = set()
+            if only_new:
+                existing_ids = get_existing_alien_ids(conn)
+                print(f"既存エイリアン数: {len(existing_ids)}")
+            
+            print("\n--- ステップ1: 全エイリアンの詳細URLを収集中 ---")
+            
+            detail_entry_list: List[Dict[str, Optional[str]]] = []
             for page in range(1, total_pages + 1):
                 page_url = f"{list_page_base_url}{page}"
                 print(f"リストの {page} / {total_pages} ページ目をスキャン中...")
                 
                 if page == 1:
-                    urls_on_page = get_detail_urls_from_page(session, first_page_url)
+                    entries_on_page = get_detail_entries_from_page(session, first_page_url)
                 else:
-                    urls_on_page = get_detail_urls_from_page(session, page_url)
+                    entries_on_page = get_detail_entries_from_page(session, page_url)
                     time.sleep(1)
                 
-                if not urls_on_page:
-                    print(f"  -> {page} ページからはURLが取得できませんでした。スキップします。")
+                if not entries_on_page:
+                    print(f"  -> {page} ページからはデータが取得できませんでした。スキップします。")
                     continue
                 
-                all_detail_urls.extend(urls_on_page)
+                detail_entry_list.extend(entries_on_page)
             
-            all_detail_urls = sorted(list(set(all_detail_urls)))
-            print(f"\n合計 {len(all_detail_urls)} 件のユニークなURLを取得しました。")
+            if not detail_entry_list:
+                print("スクレイピング対象のエイリアンが見つかりませんでした。")
+                return (0, 0, [], 0)
             
-            if not all_detail_urls:
-                return (0, 0, [])
+            unique_entries: Dict[str, Dict[str, Optional[str]]] = {}
+            for entry in detail_entry_list:
+                detail_url = entry['detail_url']
+                unique_entries[detail_url] = entry
             
-            # スクレイピング実行
+            all_detail_entries = sorted(
+                unique_entries.values(),
+                key=lambda item: item.get('id') or 0
+            )
+            
+            print(f"\n合計 {len(all_detail_entries)} 件のユニークな詳細ページを取得しました。")
             print("\n--- ステップ2: 詳細をスクレイピングし、DBに書き込み中 ---")
             
-            for i, url in enumerate(all_detail_urls, 1):
-                print(f"[{i}/{len(all_detail_urls)}] {url} を処理中...")
+            missing_image_map: Dict[int, str] = {}
+            for i, entry in enumerate(all_detail_entries, 1):
+                url = entry['detail_url']
+                icon_url = entry.get('icon_url')
+                alien_id_from_list = entry.get('id')
+                
+                print(f"[{i}/{len(all_detail_entries)}] {url} を処理中...")
                 
                 alien_data = scrape_alien_data(session, url)
-                
                 if not alien_data or not alien_data.get('id'):
                     print("  -> データ取得に失敗、またはID不明のためスキップします。")
                     continue
                 
                 alien_id = int(alien_data['id'])
                 
-                # 新規データのみ処理する場合
-                if only_new and alien_id in existing_ids:
-                    # 既存データでも、更新が必要かもしれないのでチェック
-                    # ここでは簡易的に、既存IDはスキップ（実際には更新チェックが必要な場合がある）
-                    # ただし、upsert_alien_to_dbが更新も処理するので、ここでは全て処理
-                    pass
+                if alien_id_from_list and alien_id_from_list != alien_id:
+                    print(f"  -> 一覧のID({alien_id_from_list})と詳細のID({alien_id})が一致しません。スキップします。")
+                    continue
                 
-                # DBに保存
+                if icon_url:
+                    save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.png")
+                    if not os.path.exists(save_filepath):
+                        missing_image_map[alien_id] = icon_url
+                
                 with conn.cursor() as cur:
                     cur.execute("SELECT id FROM alien WHERE id = %s", (alien_id,))
                     existed = cur.fetchone() is not None
@@ -305,13 +509,14 @@ def main(
             print(f"\nデータベースへの全ての変更をコミットしました。")
             print(f"新規追加: {new_count}件, 更新: {updated_count}件")
             
-            # 画像ダウンロード
-            if not skip_images and new_alien_ids:
-                downloaded = download_images_for_new_aliens(
-                    session, list_page_base_url, total_pages, new_alien_ids
-                )
+            if not skip_images and missing_image_map:
+                print(f"\n画像が存在しないエイリアン: {len(missing_image_map)}件")
+                downloaded = download_images_for_new_aliens(session, missing_image_map)
+                images_downloaded_total += downloaded
                 print(f"\n画像ダウンロード完了: {downloaded}件")
-            
+            elif not skip_images:
+                print(f"\n全てのエイリアンの画像が既に存在します。")
+    
     except (Exception, psycopg2.Error) as error:
         print(f"\nエラーが発生したため、処理を中断しました: {error}")
         if conn:
@@ -323,7 +528,7 @@ def main(
             conn.close()
             print("データベース接続をクローズしました。")
     
-    return (new_count, updated_count, new_alien_ids)
+    return (new_count, updated_count, new_alien_ids, images_downloaded_total)
 
 
 if __name__ == '__main__':
@@ -331,9 +536,9 @@ if __name__ == '__main__':
     parser.add_argument('--url', type=str, help='スクレイピング開始URL（環境変数SCRAPING_BASE_URLでも指定可能）')
     parser.add_argument('--skip-images', action='store_true', help='画像取得をスキップ')
     parser.add_argument('--all', action='store_true', help='既存データも含めて全て処理（デフォルトは新規のみ）')
+    parser.add_argument('--reverse-order', action='store_true', help='逆順スクレイピング（最新から）を実行')
     args = parser.parse_args()
     
-    # URL取得
     input_url = args.url or os.environ.get('SCRAPING_BASE_URL')
     if not input_url or not input_url.strip():
         print("エラー: URLが指定されていません。")
@@ -343,14 +548,16 @@ if __name__ == '__main__':
         exit(1)
     
     try:
-        new_count, updated_count, new_ids = main(
+        new_count, updated_count, new_ids, image_downloads = main(
             input_url,
             skip_images=args.skip_images,
-            only_new=not args.all
+            only_new=not args.all,
+            reverse_order=args.reverse_order
         )
         print(f"\n--- 全ての処理が完了しました ---")
         print(f"新規追加: {new_count}件")
         print(f"更新: {updated_count}件")
+        print(f"画像ダウンロード: {image_downloads}件")
         print(f"新規エイリアンID: {new_ids}")
     except Exception as e:
         print(f"\n致命的なエラー: {e}")

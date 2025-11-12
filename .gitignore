@@ -10,5 +10,14 @@ __pycache__/
 # Custom instructions (private documentation)
 .github/copilot-instructions.md
 
+# 過去のデータ修正作業用スクリプト（GitHubには上げない、ローカルのみ保持）
+scripts/apply_fixed_data.py
+scripts/fix_correct_effect_names.py
+scripts/insert_personality_from_backup.py
+
 # Screenshots
-*.png
+screenshots/
+
+# 解析ログの一時ファイル（stage1出力はGit管理から除外）
+backups/stage1/
+!backups/stage1/.gitkeep

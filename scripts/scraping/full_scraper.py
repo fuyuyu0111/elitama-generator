@@ -42,6 +42,7 @@ CONVERSION_MAP = {
     'icn_equ_res_5_11.png': 'AQ', 'icn_equ_res_5_12.png': 'AR',
     'icn_equ_res_5_13.png': 'AS', 'icn_equ_res_5_14.png': 'AT',
     'icn_equ_res_5_15.png': 'AU', 'icn_equ_res_5_16.png': 'AV',
+    'icn_equ_res_5_50.png': 'AW',
     # role
     'icn_equ_res_5_41.png': '1', 'icn_equ_res_5_42.png': '2',
     'icn_equ_res_5_43.png': '3', 'icn_equ_res_5_44.png': '4',
@@ -82,26 +83,59 @@ def get_total_pages(soup):
         return 1
 
 # --- スクレイピング用関数 ---
-def get_detail_urls_from_page(session, page_url):
-    """一覧ページから個別の詳細ページのURLリストを取得する"""
+def get_detail_entries_from_page(session, page_url):
+    """一覧ページから個別の詳細ページ情報（URLとアイコンURL、ID）を取得する"""
     try:
         response = session.get(page_url)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        detail_urls = set()
-        base_url = f"{urlparse(page_url).scheme}://{urlparse(page_url).netloc}/data/"
+        base_domain = f"{urlparse(page_url).scheme}://{urlparse(page_url).netloc}"
+        detail_entries = []
         alien_table = soup.find('table', class_='data-list')
 
         if not alien_table:
             return []
 
-        for a_tag in alien_table.find_all('a'):
-            if a_tag.has_attr('href') and 'Alien_detail' in a_tag['href']:
-                full_url = urljoin(base_url, a_tag['href'])
-                detail_urls.add(full_url)
+        for row in alien_table.find_all('tr'):
+            if row.find('th'):
+                # ヘッダ行はスキップ
+                continue
+
+            cells = row.find_all('td')
+            if len(cells) < 3:
+                continue
+
+            link_cell = cells[0]
+            id_cell = cells[1]
+
+            link_tag = link_cell.find('a', href=re.compile(r'Alien_detail'))
+            if not link_tag or not link_tag.has_attr('href'):
+                continue
+
+            detail_url = urljoin(f"{base_domain}/data/", link_tag['href'])
+
+            icon_url = None
+            icon_tag = link_tag.find('img')
+            if icon_tag and icon_tag.has_attr('src'):
+                icon_url = urljoin(base_domain, icon_tag['src'])
+
+            alien_id = None
+            if id_cell:
+                match = re.search(r'(\d+)', id_cell.get_text(strip=True))
+                if match:
+                    try:
+                        alien_id = int(match.group(1))
+                    except ValueError:
+                        alien_id = None
+
+            detail_entries.append({
+                'detail_url': detail_url,
+                'icon_url': icon_url,
+                'id': alien_id,
+            })
         
-        return list(detail_urls)
+        return detail_entries
     except requests.exceptions.RequestException as e:
         print(f"  -> ページ {page_url} の取得に失敗: {e}")
         return []
@@ -161,6 +195,19 @@ def scrape_alien_data(session, url):
                     data['types'].append(filename)
         # ★★★ ここまで ★★★
 
+        # メイン画像の取得
+        image_container = detail_section.find('div', class_='detail-alien-image')
+        main_image_tag = image_container.find('img') if image_container else None
+        if main_image_tag and main_image_tag.has_attr('src'):
+            image_src = main_image_tag['src']
+            data['image_src'] = image_src
+            data['image_filename'] = get_image_filename(main_image_tag)
+            data['image_url'] = urljoin(url, image_src)
+        else:
+            data['image_src'] = None
+            data['image_filename'] = None
+            data['image_url'] = None
+
         # 個性はリストとして取得 (変更なし)
         data['skills'] = []
         skill_table = None
@@ -183,7 +230,6 @@ def scrape_alien_data(session, url):
                         data['skills'].append({'name': skill_name, 'text': skill_effect})
         
         # ★★★ 特技データの取得 ★★★
-        # 注意: 実際のHTML構造に合わせてセレクタを調整する必要がある可能性があります
         data['special_skill'] = None
         data['special_skill_text'] = None
         
@@ -198,13 +244,14 @@ def scrape_alien_data(session, url):
             special_th = special_skill_table.find('th', text=re.compile(r'特技'))
             if special_th and special_th.find_next_sibling('td'):
                 special_td = special_th.find_next_sibling('td')
-                # 特技名を取得
-                special_name_elem = special_td.find('a') or special_td.find('p')
+                # 特技名を取得（<a>, <p>, <span class="bold">の順で検索）
+                special_name_elem = (special_td.find('a') or 
+                                    special_td.find('span', class_='bold') or 
+                                    special_td.find('p'))
                 if special_name_elem:
                     data['special_skill'] = special_name_elem.text.strip()
                 
-                # 特技テキストを取得（個性と同じ構造を想定）
-                # 個性と同じように、リンクの親要素の次のpタグから取得
+                # 特技テキストを取得
                 if special_name_elem:
                     special_effect_container = special_name_elem.find_parent('p')
                     if special_effect_container:
@@ -223,6 +270,67 @@ def scrape_alien_data(session, url):
                         special_effect = raw_text.replace('\n＜', '＜')
                         data['special_skill_text'] = special_effect
         
+        # ★★★ ステータス値の取得 ★★★
+        data['hp'] = None
+        data['power'] = None
+        data['size'] = None
+        data['motivation'] = None
+        data['speed'] = None
+        
+        ability_table = detail_section.find('table', class_='ability')
+        if ability_table:
+            # たいりょく（hp）を取得 - Lv 450またはLv 420の値（最後の値）
+            for tr in ability_table.find_all('tr'):
+                hp_th = tr.find('th', text=re.compile(r'たいりょく'))
+                if hp_th:
+                    # <tr>内の最後の<td>要素を取得
+                    hp_td = tr.find_all('td')
+                    if hp_td:
+                        hp_text = hp_td[-1].get_text(separator='\n', strip=True)
+                        hp_values = [v.strip() for v in hp_text.split('\n') if v.strip()]
+                        if hp_values:
+                            # 最後の値（Lv 450またはLv 420の値）を取得
+                            try:
+                                data['hp'] = int(hp_values[-1])
+                            except ValueError:
+                                pass
+                    break
+            
+            # つよさ（power）を取得 - Lv 450またはLv 420の値（最後の値）
+            for tr in ability_table.find_all('tr'):
+                power_th = tr.find('th', text=re.compile(r'つよさ'))
+                if power_th:
+                    # <tr>内の最後の<td>要素を取得
+                    power_td = tr.find_all('td')
+                    if power_td:
+                        power_text = power_td[-1].get_text(separator='\n', strip=True)
+                        power_values = [v.strip() for v in power_text.split('\n') if v.strip()]
+                        if power_values:
+                            # 最後の値（Lv 450またはLv 420の値）を取得
+                            try:
+                                data['power'] = int(power_values[-1])
+                            except ValueError:
+                                pass
+                    break
+            
+            # ごはんセクションからおおきさ、やるき、いどうを取得
+            for tr in ability_table.find_all('tr'):
+                gohan_th = tr.find('th', text=re.compile(r'ごはん'))
+                if gohan_th:
+                    # <tr>内の最後の<td>要素を取得
+                    gohan_td = tr.find_all('td')
+                    if gohan_td:
+                        gohan_text = gohan_td[-1].get_text(separator='\n', strip=True)
+                        gohan_values = [v.strip() for v in gohan_text.split('\n') if v.strip()]
+                        if len(gohan_values) >= 3:
+                            try:
+                                data['size'] = int(gohan_values[0])  # おおきさ
+                                data['motivation'] = int(gohan_values[1])  # やるき
+                                data['speed'] = int(gohan_values[2])  # いどう
+                            except ValueError:
+                                pass
+                    break
+        
         return data
 
     except requests.exceptions.RequestException as e:
@@ -236,10 +344,16 @@ def scrape_alien_data(session, url):
 def upsert_alien_to_db(conn, data):
     """スクレイピングしたデータをDBに書き込む (存在すれば更新、なければ追加)"""
     
+    # NBSPなどの特殊スペースを通常のスペースに置換
+    def normalize_value(value):
+        if isinstance(value, str):
+            return value.replace('\xa0', ' ').strip()
+        return value
+
     # データベースの列名とデータ型に合わせて値を準備
     db_data = {
         'id': int(data['id']) if data.get('id') else None,
-        'name': data.get('name'),
+        'name': normalize_value(data.get('name')),
         'attribute': CONVERSION_MAP.get(data.get('attribute')),
         'affiliation': CONVERSION_MAP.get(data.get('affiliation')),
         'attack_range': CONVERSION_MAP.get(data.get('attack_range')),
@@ -257,24 +371,52 @@ def upsert_alien_to_db(conn, data):
     skills = data.get('skills', [])
     for i in range(3):
         if i < len(skills):
-            db_data[f'skill_no{i+1}'] = skills[i].get('name')
-            db_data[f'skill_text{i+1}'] = skills[i].get('text')
+            db_data[f'skill_no{i+1}'] = normalize_value(skills[i].get('name'))
+            db_data[f'skill_text{i+1}'] = normalize_value(skills[i].get('text'))
         else:
             db_data[f'skill_no{i+1}'] = None
             db_data[f'skill_text{i+1}'] = None
 
     # ★★★ 特技データを追加 ★★★
-    db_data['S_Skill'] = data.get('special_skill') or None
-    db_data['S_Skill_text'] = data.get('special_skill_text') or None
+    db_data['S_Skill'] = normalize_value(data.get('special_skill') or None)
+    db_data['S_Skill_text'] = normalize_value(data.get('special_skill_text') or None)
 
-    # ★★★ INSERT/UPDATE文で使う列の順番に role と特技を追加 ★★★
-    columns = [
-        'id', 'name', 'attribute', 'affiliation', 'attack_range', 'attack_area',
-        'type_1', 'type_2', 'type_3', 'type_4', 'role', 'skill_no1', 'skill_text1',
-        'skill_no2', 'skill_text2', 'skill_no3', 'skill_text3',
-        'S_Skill', 'S_Skill_text'  # 特技データを追加
+    # ★★★ ステータス値を追加 ★★★
+    db_data['hp'] = data.get('hp')
+    db_data['power'] = data.get('power')
+    db_data['motivation'] = data.get('motivation')
+    db_data['size'] = data.get('size')
+    db_data['speed'] = data.get('speed')
+
+    # ★★★ INSERT/UPDATE文で使う列の順番に role、特技、ステータス値を追加 ★★★
+    column_mappings = [
+        ('id', 'id'),
+        ('name', 'name'),
+        ('attribute', 'attribute'),
+        ('affiliation', 'affiliation'),
+        ('attack_range', 'attack_range'),
+        ('attack_area', 'attack_area'),
+        ('type_1', 'type_1'),
+        ('type_2', 'type_2'),
+        ('type_3', 'type_3'),
+        ('type_4', 'type_4'),
+        ('role', 'role'),
+        ('skill_no1', 'skill_no1'),
+        ('skill_text1', 'skill_text1'),
+        ('skill_no2', 'skill_no2'),
+        ('skill_text2', 'skill_text2'),
+        ('skill_no3', 'skill_no3'),
+        ('skill_text3', 'skill_text3'),
+        ('"S_Skill"', 'S_Skill'),  # 特技データ（大文字列はクォートが必要）
+        ('"S_Skill_text"', 'S_Skill_text'),
+        ('hp', 'hp'),
+        ('power', 'power'),
+        ('motivation', 'motivation'),
+        ('size', 'size'),
+        ('speed', 'speed')
     ]
-    values = [db_data.get(col) for col in columns]
+    columns = [col for col, _ in column_mappings]
+    values = [db_data.get(key) for _, key in column_mappings]
 
     with conn.cursor() as cur:
         cur.execute("SELECT id FROM alien WHERE id = %s", (db_data['id'],))
@@ -285,12 +427,12 @@ def upsert_alien_to_db(conn, data):
             sql = f"UPDATE alien SET {', '.join(update_cols)} WHERE id = %s"
             update_values = values[1:] + [values[0]]
             cur.execute(sql, update_values)
-            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' のデータを更新しました。")
+            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' のデータを更新しました。")
         else:
             placeholders = ', '.join(['%s'] * len(columns))
             sql = f"INSERT INTO alien ({', '.join(columns)}) VALUES ({placeholders})"
             cur.execute(sql, values)
-            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' を新規追加しました。")
+            print(f"  -> 図鑑No.{db_data['id']} '{db_data['name']}' を新規追加しました。")
 
 # --- メインの実行部分 ---
 if __name__ == '__main__':
@@ -335,34 +477,50 @@ if __name__ == '__main__':
             exit()
 
         # 確定したページ数でループを実行
+        detail_entry_list = []
+
         for page in range(1, total_pages + 1):
             page_url = f"{list_page_base_url}{page}"
             print(f"リストの {page} / {total_pages} ページ目をスキャン中...")
             
             # 1ページ目は既に取得済みなので再利用、2ページ目以降は新規取得
             if page == 1:
-                urls_on_page = get_detail_urls_from_page(session, first_page_url)
+                entries_on_page = get_detail_entries_from_page(session, first_page_url)
             else:
-                urls_on_page = get_detail_urls_from_page(session, page_url)
+                entries_on_page = get_detail_entries_from_page(session, page_url)
                 time.sleep(1)
             
-            if not urls_on_page:
+            if not entries_on_page:
                 print(f"  -> {page} ページからはURLが取得できませんでした。スキップします。")
                 continue
+            
+            detail_entry_list.extend(entries_on_page)
 
-            all_detail_urls.extend(urls_on_page)
+        if detail_entry_list:
+            # detail_urlをキーに重複を排除しつつ、ID昇順にソート
+            unique_entries = {}
+            for entry in detail_entry_list:
+                detail_url = entry['detail_url']
+                if detail_url not in unique_entries:
+                    unique_entries[detail_url] = entry
+            all_detail_entries = sorted(
+                unique_entries.values(),
+                key=lambda item: item.get('id') or 0
+            )
+        else:
+            all_detail_entries = []
         
-        all_detail_urls = sorted(list(set(all_detail_urls)))
-        print(f"\n合計 {len(all_detail_urls)} 件のユニークなURLを取得しました。")
+        print(f"\n合計 {len(all_detail_entries)} 件のユニークなURLを取得しました。")
 
-        if all_detail_urls:
+        if all_detail_entries:
             print("\n--- ステップ2: 詳細をスクレイピングし、DBに書き込み中 ---")
             conn = None
             try:
                 conn = get_db_connection()
                 
-                for i, url in enumerate(all_detail_urls, 1):
-                    print(f"[{i}/{len(all_detail_urls)}] {url} を処理中...")
+                for i, entry in enumerate(all_detail_entries, 1):
+                    url = entry['detail_url']
+                    print(f"[{i}/{len(all_detail_entries)}] {url} を処理中...")
                     
                     alien_data = scrape_alien_data(session, url)
                     

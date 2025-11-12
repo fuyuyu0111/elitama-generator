@@ -5,7 +5,7 @@ Discord Webhookを使用した通知機能
 import os
 import json
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set, List
 from datetime import datetime
 
 
@@ -155,6 +155,7 @@ def send_scraping_result(
 ) -> bool:
     """
     スクレイピング結果をDiscordに送信（簡易関数）
+    注意: この関数は後方互換性のため残していますが、新しいフォーマットにはsend_scraping_result_detailedを使用してください
     
     Args:
         webhook_url: Discord Webhook URL
@@ -206,6 +207,160 @@ def send_scraping_result(
                 "スクレイピング処理が正常に完了しました。",
                 details=details
             )
+        
+        return True
+    except Exception as e:
+        print(f"Discord通知送信失敗: {e}")
+        return False
+
+
+def send_scraping_result_detailed(
+    webhook_url: Optional[str],
+    new_alien_names: Dict[int, str],
+    updated_alien_names: Dict[int, str],
+    changed_regular_skills: Set[str],
+    changed_special_skills: Set[str],
+    regular_analysis_results: Dict[str, List[Dict]],
+    special_analysis_results: Dict[str, List[Dict]],
+    images_downloaded: int = 0,
+    error_info: Optional[Dict[str, str]] = None
+) -> bool:
+    """
+    スクレイピング結果を詳細フォーマットでDiscordに送信（追加・更新・エラーを1つのメッセージに統合）
+    
+    Args:
+        webhook_url: Discord Webhook URL
+        new_alien_names: {alien_id: name} の辞書（追加エイリアン）
+        updated_alien_names: {alien_id: name} の辞書（更新エイリアン）
+        changed_regular_skills: 変更・追加された個性テキストセット
+        changed_special_skills: 変更・追加された特技テキストセット
+        regular_analysis_results: {skill_text: [効果情報]} の辞書（個性解析結果）
+        special_analysis_results: {skill_text: [効果情報]} の辞書（特技解析結果）
+        images_downloaded: ダウンロードした画像数
+        error_info: {"step": "ステップ名", "message": "エラーメッセージ", "progress": "進捗状況"} の辞書
+    
+    Returns:
+        成功した場合True
+    """
+    if not webhook_url:
+        return False
+    
+    # 何もない場合は通知を送らない
+    if not new_alien_names and not updated_alien_names and not error_info:
+        return True
+    
+    try:
+        notifier = DiscordNotifier(webhook_url)
+        content_parts = []
+        
+        # 【追加】セクション
+        if new_alien_names:
+            add_content = "【追加】\n\n"
+            
+            # 追加エイリアン名
+            alien_name_list = [f"{aid}: {name}" for aid, name in sorted(new_alien_names.items())]
+            if len(alien_name_list) > 20:
+                alien_name_list = alien_name_list[:20]
+                alien_name_list.append(f"（他{len(new_alien_names) - 20}件）")
+            add_content += "追加エイリアン名\n" + "\n".join(alien_name_list) + "\n\n"
+            
+            # 追加個性
+            if changed_regular_skills:
+                add_content += "追加個性\n"
+                for skill_text in sorted(list(changed_regular_skills))[:10]:  # 最大10件
+                    effects = regular_analysis_results.get(skill_text, [])
+                    if effects:
+                        effect_names = [e['effect_name'] for e in effects]
+                        add_content += f"- {skill_text[:50]}...\n"
+                        add_content += f"  効果: {', '.join(effect_names)}\n"
+                    else:
+                        add_content += f"- {skill_text[:50]}...\n"
+                if len(changed_regular_skills) > 10:
+                    add_content += f"（他{len(changed_regular_skills) - 10}件）\n"
+                add_content += "\n"
+            
+            # 追加特技
+            if changed_special_skills:
+                add_content += "追加特技\n"
+                for skill_text in sorted(list(changed_special_skills))[:10]:  # 最大10件
+                    effects = special_analysis_results.get(skill_text, [])
+                    if effects:
+                        effect_names = [e['effect_name'] for e in effects]
+                        add_content += f"- {skill_text[:50]}...\n"
+                        add_content += f"  効果: {', '.join(effect_names)}\n"
+                    else:
+                        add_content += f"- {skill_text[:50]}...\n"
+                if len(changed_special_skills) > 10:
+                    add_content += f"（他{len(changed_special_skills) - 10}件）\n"
+                add_content += "\n"
+            
+            # 追加エイリアン画像
+            if images_downloaded > 0:
+                add_content += f"追加エイリアン画像: {images_downloaded}件\n"
+            
+            content_parts.append(add_content)
+        
+        # 【更新】セクション
+        if updated_alien_names:
+            update_content = "【更新】\n\n"
+            
+            # 更新エイリアン名
+            alien_name_list = [f"{aid}: {name}" for aid, name in sorted(updated_alien_names.items())]
+            if len(alien_name_list) > 20:
+                alien_name_list = alien_name_list[:20]
+                alien_name_list.append(f"（他{len(updated_alien_names) - 20}件）")
+            update_content += "更新エイリアン名\n" + "\n".join(alien_name_list) + "\n\n"
+            
+            # 更新個性（追加と同じ形式）
+            if changed_regular_skills:
+                update_content += "更新個性\n"
+                for skill_text in sorted(list(changed_regular_skills))[:10]:  # 最大10件
+                    effects = regular_analysis_results.get(skill_text, [])
+                    if effects:
+                        effect_names = [e['effect_name'] for e in effects]
+                        update_content += f"- {skill_text[:50]}...\n"
+                        update_content += f"  効果: {', '.join(effect_names)}\n"
+                    else:
+                        update_content += f"- {skill_text[:50]}...\n"
+                if len(changed_regular_skills) > 10:
+                    update_content += f"（他{len(changed_regular_skills) - 10}件）\n"
+                update_content += "\n"
+            
+            # 更新特技（追加と同じ形式）
+            if changed_special_skills:
+                update_content += "更新特技\n"
+                for skill_text in sorted(list(changed_special_skills))[:10]:  # 最大10件
+                    effects = special_analysis_results.get(skill_text, [])
+                    if effects:
+                        effect_names = [e['effect_name'] for e in effects]
+                        update_content += f"- {skill_text[:50]}...\n"
+                        update_content += f"  効果: {', '.join(effect_names)}\n"
+                    else:
+                        update_content += f"- {skill_text[:50]}...\n"
+                if len(changed_special_skills) > 10:
+                    update_content += f"（他{len(changed_special_skills) - 10}件）\n"
+                update_content += "\n"
+            
+            content_parts.append(update_content)
+        
+        # 【エラー】セクション（常に表示）
+        if error_info:
+            error_content = "【エラー】\n\n"
+            error_content += f"発生箇所: {error_info.get('step', '不明')}\n"
+            error_content += f"エラーメッセージ: {error_info.get('message', '不明')}\n"
+            if error_info.get('progress'):
+                error_content += f"\n進捗状況: {error_info.get('progress')}"
+            content_parts.append(error_content)
+        else:
+            # エラーがない場合は「なし」と表示
+            content_parts.append("【エラー】\n\nなし\n")
+        
+        # すべてのセクションを結合して送信
+        final_content = "\n\n".join(content_parts)
+        notifier.send_message(
+            content=final_content,
+            timestamp=False
+        )
         
         return True
     except Exception as e:

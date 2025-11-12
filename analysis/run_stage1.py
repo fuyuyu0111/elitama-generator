@@ -41,17 +41,17 @@ S_SKILL_EFFECT_DICT_PATH = PROJECT_ROOT / "analysis" / "prompts" / "s_skill_effe
 BACKUP_DIR = PROJECT_ROOT / "backups" / "stage1"
 
 # --- LLMとレート制限の設定 ---
-MODEL_NAME = "gemini-2.5-flash-lite"
-# TPM: 250,000 tokens/分、RPM: 15 req/分の制限を考慮
-# テスト結果: 約7,052 tokens/リクエスト → RPM制限がボトルネック（4.00秒間隔必要）
-# 安全マージン込みで4.5秒間隔に設定（実際のRPM: 13.3 req/分、TPM: 約94,000 tokens/分）
-ACTUAL_INTERVAL = 4.5  # 秒
+MODEL_NAME = "gemini-2.5-flash"
+# TPM: 1,000,000 tokens/分、RPM: 10 req/分の制限を考慮
+# テスト結果: 約7,052 tokens/リクエスト → RPM制限がボトルネック（6.00秒間隔必要）
+# 安全マージン込みで6.5秒間隔に設定（実際のRPM: 9.2 req/分、TPM: 約65,000 tokens/分）
+ACTUAL_INTERVAL = 6.5  # 秒
 
 print(f"レート制限設定:")
 print(f"  モデル: {MODEL_NAME}")
 print(f"  リクエスト間隔: {ACTUAL_INTERVAL:.1f}秒")
 print(f"  想定スループット: {60.0 / ACTUAL_INTERVAL:.1f} req/分")
-print(f"  レート制限: TPM 250,000 tokens/分、RPM 15 req/分")
+print(f"  レート制限: TPM 1,000,000 tokens/分、RPM 10 req/分")
 
 # --- キャッシュ ---
 _CORRECT_NAMES_CACHE = None
@@ -260,7 +260,68 @@ def auto_complete_classification(effect_name: str, conn) -> Tuple[Optional[str],
     return PERSONALITY_EFFECT_CATEGORIES.get(effect_name, (None, None))
 
 
-# --- 個性テキスト取得 ---
+# --- キャラクター単位で個性テキスト取得（1キャラ3個性ずつ） ---
+def fetch_characters_with_skills_from_db(conn, limit: Optional[int] = None, offset: int = 0, unanalyzed_only: bool = False) -> List[Dict]:
+    """
+    1キャラ（3個性）ずつ取得
+    
+    Args:
+        unanalyzed_only: Trueの場合、未解析の個性テキストを持つキャラのみを取得
+    
+    Returns:
+        List of dicts with keys: id, skill_text1, skill_text2, skill_text3
+    """
+    if unanalyzed_only:
+        # 未解析の個性テキストを持つキャラのみを取得
+        query = """
+        WITH analyzed_texts AS (
+            SELECT DISTINCT skill_text FROM {verified_table}
+        )
+        SELECT a.id, a.skill_text1, a.skill_text2, a.skill_text3
+        FROM {alien_table} a
+        WHERE (
+            (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND a.skill_text1 NOT IN (SELECT skill_text FROM analyzed_texts))
+            OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND a.skill_text2 NOT IN (SELECT skill_text FROM analyzed_texts))
+            OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND a.skill_text3 NOT IN (SELECT skill_text FROM analyzed_texts))
+        )
+        ORDER BY a.id
+        """.format(alien_table=SOURCE_TABLE_ALIEN, verified_table=DEST_TABLE)
+    else:
+        # 全てのキャラを取得
+        query = """
+        SELECT id, skill_text1, skill_text2, skill_text3
+        FROM {alien_table}
+        WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+           OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
+           OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
+        ORDER BY id
+        """.format(alien_table=SOURCE_TABLE_ALIEN)
+    
+    params = []
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset > 0:
+        query += " OFFSET %s"
+        params.append(offset)
+    
+    characters = []
+    try:
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute(query, params)
+            for row in cur.fetchall():
+                characters.append({
+                    'id': row['id'],
+                    'skill_text1': row['skill_text1'],
+                    'skill_text2': row['skill_text2'],
+                    'skill_text3': row['skill_text3']
+                })
+    except Exception as e:
+        print(f"キャラクターデータ取得エラー: {e}")
+    return characters
+
+
+# --- 個性テキスト取得（後方互換性のため残す） ---
 def fetch_skill_texts_from_db(conn, limit: Optional[int] = None, offset: int = 0, unanalyzed_only: bool = False, regular_skills_only: bool = False) -> List[str]:
     """
     個性テキスト（ユニーク）を取得
@@ -912,7 +973,8 @@ async def process_skill_texts_parallel(
     model: genai.GenerativeModel,
     interval: float,
     conn,
-    count_tokens: bool = False
+    count_tokens: bool = False,
+    is_special_skill: bool = False
 ) -> Tuple[List[Tuple], List[str], Optional[int]]:
     """
     個性テキスト単位でリクエストを一定間隔で送信し、回答を並行して待つ
@@ -1280,62 +1342,119 @@ def main():
                 unanalyzed_only=args.unanalyzed_only
             )
             print(f"{len(skill_texts)} 件の特技テキストを読み込みました。")
+            
+            # 特技の場合は既存の処理を使用
+            is_special = True
+            if args.sequential_check:
+                # 逐次処理で2重チェック
+                all_rows, failed_skills_initial, total_tokens = process_skill_texts_sequential_with_check(
+                    skill_texts, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                )
+                print(f"\n逐次解析完了: {len(all_rows)} 件の効果を抽出しました。")
+                print(f"失敗: {len(failed_skills_initial)} 件")
+                if total_tokens is not None:
+                    print(f"総入力トークン数: {total_tokens} tokens")
+                
+                # 全ての成功データ
+                final_all_rows = all_rows
+                failed_skills_final = failed_skills_initial
+            else:
+                # 並列処理（既存の処理）
+                all_rows, failed_skills_initial, total_tokens = asyncio.run(process_skill_texts_parallel(
+                    skill_texts, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                ))
+                print(f"\n初回解析完了: {len(all_rows)} 件の効果を抽出しました。")
+                print(f"初回失敗: {len(failed_skills_initial)} 件")
+                if total_tokens is not None:
+                    print(f"総入力トークン数: {total_tokens} tokens")
+
+                # --- リトライ処理 ---
+                retry_rows = []
+                failed_skills_final = []
+                if failed_skills_initial:
+                    print(f"\n--- リトライ解析 ({len(failed_skills_initial)} 件) ---")
+                    retry_rows, failed_skills_final, _ = asyncio.run(process_skill_texts_parallel(
+                        failed_skills_initial, model, ACTUAL_INTERVAL, conn, is_special_skill=is_special
+                    ))
+                    print(f"リトライ完了: {len(retry_rows)} 件の効果を追加抽出。")
+                    print(f"最終失敗: {len(failed_skills_final)} 件")
+                    if failed_skills_final:
+                        print("最終的に失敗した特技:", ", ".join([
+                            f"「{s[:20]}...」" for s in failed_skills_final[:20]
+                        ]))
+
+                # 全ての成功データを結合
+                final_all_rows = all_rows + retry_rows
+                print(f"\n全解析完了: 合計 {len(final_all_rows)} 件の効果を抽出しました。")
         else:
-            print("データベースから個性テキストを読み込んでいます...")
-            skill_texts = fetch_skill_texts_from_db(
+            # 個性の場合は1キャラ（3個性）ずつ処理
+            print("データベースからキャラクター（1キャラ3個性ずつ）を読み込んでいます...")
+            characters = fetch_characters_with_skills_from_db(
                 conn, 
                 limit=args.limit, 
                 offset=args.offset,
-                unanalyzed_only=args.unanalyzed_only,
-                regular_skills_only=args.regular_skills_only
+                unanalyzed_only=args.unanalyzed_only
             )
-            print(f"{len(skill_texts)} 件の個性テキストを読み込みました。")
-        if not skill_texts:
-            return
-
-        # --- 初回解析実行 ---
-        is_special = args.special_skills_only
-        if args.sequential_check:
-            # 逐次処理で2重チェック
-            all_rows, failed_skills_initial, total_tokens = process_skill_texts_sequential_with_check(
-                skill_texts, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
-            )
-            print(f"\n逐次解析完了: {len(all_rows)} 件の効果を抽出しました。")
-            print(f"失敗: {len(failed_skills_initial)} 件")
-            if total_tokens is not None:
-                print(f"総入力トークン数: {total_tokens} tokens")
+            print(f"{len(characters)} キャラクターを読み込みました。")
+            if not characters:
+                return
             
-            # 全ての成功データ
-            final_all_rows = all_rows
-            failed_skills_final = failed_skills_initial
-        else:
-            # 並列処理（既存の処理）
-            all_rows, failed_skills_initial, total_tokens = asyncio.run(process_skill_texts_parallel(
-                skill_texts, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
-            ))
-            print(f"\n初回解析完了: {len(all_rows)} 件の効果を抽出しました。")
-            print(f"初回失敗: {len(failed_skills_initial)} 件")
-            if total_tokens is not None:
-                print(f"総入力トークン数: {total_tokens} tokens")
-
-            # --- リトライ処理 ---
-            retry_rows = []
+            # 1キャラずつ処理（3個性を順番に解析）
+            final_all_rows = []
             failed_skills_final = []
-            if failed_skills_initial:
-                print(f"\n--- リトライ解析 ({len(failed_skills_initial)} 件) ---")
-                retry_rows, failed_skills_final, _ = asyncio.run(process_skill_texts_parallel(
-                    failed_skills_initial, model, ACTUAL_INTERVAL, conn, is_special_skill=is_special
-                ))
-                print(f"リトライ完了: {len(retry_rows)} 件の効果を追加抽出。")
-                print(f"最終失敗: {len(failed_skills_final)} 件")
-                if failed_skills_final:
-                    print("最終的に失敗した個性:", ", ".join([
-                        f"「{s[:20]}...」" for s in failed_skills_final[:20]
-                    ]))
-
-            # 全ての成功データを結合
-            final_all_rows = all_rows + retry_rows
+            total_tokens = 0
+            
+            for char_idx, char in enumerate(characters, 1):
+                print(f"\n[{char_idx}/{len(characters)}] キャラクターID {char['id']} を処理中...")
+                
+                # 3個性をリストに変換（Noneや'なし'を除外）
+                skill_texts_for_char = []
+                for i in range(1, 4):
+                    skill_text = char.get(f'skill_text{i}')
+                    if skill_text and skill_text != 'なし':
+                        skill_texts_for_char.append(skill_text)
+                
+                if not skill_texts_for_char:
+                    print(f"  キャラクターID {char['id']} には解析対象の個性がありません。スキップします。")
+                    continue
+                
+                print(f"  個性数: {len(skill_texts_for_char)}件")
+                
+                # 個性テキストを順番に解析
+                is_special = False
+                if args.sequential_check:
+                    # 逐次処理で2重チェック
+                    char_rows, char_failed, char_tokens = process_skill_texts_sequential_with_check(
+                        skill_texts_for_char, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                    )
+                    final_all_rows.extend(char_rows)
+                    failed_skills_final.extend(char_failed)
+                    if char_tokens is not None:
+                        total_tokens += char_tokens
+                else:
+                    # 並列処理
+                    char_rows, char_failed, char_tokens = asyncio.run(process_skill_texts_parallel(
+                        skill_texts_for_char, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                    ))
+                    final_all_rows.extend(char_rows)
+                    failed_skills_final.extend(char_failed)
+                    if char_tokens is not None:
+                        total_tokens += char_tokens
+                    
+                    # リトライ処理
+                    if char_failed:
+                        print(f"  リトライ: {len(char_failed)}件")
+                        retry_rows, retry_failed, _ = asyncio.run(process_skill_texts_parallel(
+                            char_failed, model, ACTUAL_INTERVAL, conn, is_special_skill=is_special
+                        ))
+                        final_all_rows.extend(retry_rows)
+                        failed_skills_final = [s for s in failed_skills_final if s not in retry_failed]
+                        failed_skills_final.extend(retry_failed)
+            
             print(f"\n全解析完了: 合計 {len(final_all_rows)} 件の効果を抽出しました。")
+            print(f"失敗: {len(failed_skills_final)} 件")
+            if total_tokens > 0:
+                print(f"総入力トークン数: {total_tokens} tokens")
 
         # ドライラン
         if args.dry_run:

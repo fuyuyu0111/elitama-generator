@@ -1,10 +1,10 @@
 from dotenv import load_dotenv
-load_dotenv()
-
 import os
 import json
 import sys
 import secrets
+import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime
 import psycopg2
@@ -14,6 +14,8 @@ from functools import lru_cache, wraps
 
 # 共通ヘルパー関数をインポート
 PROJECT_ROOT = Path(__file__).resolve().parent
+# .envファイルを読み込む（PROJECT_ROOTを明示的に指定）
+load_dotenv(dotenv_path=PROJECT_ROOT / '.env')
 sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
 from utils.db_helpers import normalize_alien_row, is_special_skill
 
@@ -41,6 +43,49 @@ def require_admin(func):
             return jsonify({'success': False, 'error': '認証が必要です'}), 401
         return func(*args, **kwargs)
     return wrapper
+
+
+def parse_id_list(value):
+    """さまざまな形式のID指定を正規化して昇順リストに変換"""
+    if value is None:
+        raise ValueError('1つ以上のIDを指定してください')
+    if isinstance(value, list):
+        try:
+            ids = sorted({int(v) for v in value})
+        except (ValueError, TypeError):
+            raise ValueError('IDは整数で指定してください')
+        if not ids:
+            raise ValueError('1つ以上のIDを指定してください')
+        return ids
+    if isinstance(value, str):
+        sanitized = value.replace('、', ',').replace(' ', '')
+        if not sanitized:
+            raise ValueError('1つ以上のIDを指定してください')
+        ids = set()
+        for token in sanitized.split(','):
+            if not token:
+                continue
+            if '-' in token:
+                parts = token.split('-', 1)
+                if len(parts) != 2:
+                    raise ValueError('IDの形式が正しくありません (例: 1601,1603-1605)')
+                start_str, end_str = parts
+                if not start_str.isdigit() or not end_str.isdigit():
+                    raise ValueError('IDは整数で指定してください')
+                start = int(start_str)
+                end = int(end_str)
+                step = 1 if end >= start else -1
+                for current in range(start, end + step, step):
+                    ids.add(current)
+            else:
+                if not token.isdigit():
+                    raise ValueError('IDは整数で指定してください')
+                ids.add(int(token))
+        if not ids:
+            raise ValueError('1つ以上のIDを指定してください')
+        return sorted(ids)
+    raise ValueError('IDの形式が正しくありません')
+
 
 def get_db_connection():
     conn_str = os.environ.get('DATABASE_URL')
@@ -381,6 +426,231 @@ def api_admin_logout():
 def api_admin_check_auth():
     """認証状態を確認"""
     return jsonify({'logged_in': check_admin()})
+
+@app.route('/api/admin/trigger-full-scrape', methods=['POST'])
+@require_admin
+def api_admin_trigger_full_scrape():
+    """全体スクレイピングを非同期で実行（管理モード専用）"""
+    try:
+        scraping_url = os.environ.get('SCRAPING_BASE_URL')
+        discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+        
+        if not scraping_url:
+            return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
+        
+        # 開始通知を送信
+        if discord_webhook_url:
+            try:
+                from scripts.utils.discord_notifier import DiscordNotifier
+                notifier = DiscordNotifier(discord_webhook_url)
+                notifier.send_info(
+                    "全体スクレイピングを開始しました。\n処理はバックグラウンドで実行されます。",
+                    details={"モード": "全体スクレイピング（手動実行）"}
+                )
+            except Exception as e:
+                app.logger.warning(f"開始通知の送信に失敗しました: {e}")
+        
+        def run_scraping():
+            """バックグラウンドでスクレイピングを実行"""
+            try:
+                cmd = [
+                    sys.executable,
+                    str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
+                    '--url', scraping_url,
+                    '--full-scrape',
+                ]
+                if discord_webhook_url:
+                    cmd.extend(['--discord-webhook', discord_webhook_url])
+                
+                result = subprocess.run(
+                    cmd,
+                    cwd=str(PROJECT_ROOT),
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode != 0:
+                    app.logger.error(f"Full scrape failed: {result.stderr}")
+                else:
+                    app.logger.info(f"Full scrape completed: {result.stdout[-500:]}")
+            except Exception as e:
+                app.logger.error(f"Full scrape error: {e}")
+        
+        # バックグラウンドスレッドで実行
+        thread = threading.Thread(target=run_scraping)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': '全体スクレイピングを開始しました。処理はバックグラウンドで実行されます。'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Trigger full scrape error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/trigger-partial-scrape', methods=['POST'])
+@require_admin
+def api_admin_trigger_partial_scrape():
+    """指定IDのみスクレイピングを非同期で実行"""
+    data = request.json or {}
+    try:
+        ids = parse_id_list(data.get('ids'))
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    
+    scraping_url = os.environ.get('SCRAPING_BASE_URL')
+    discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+    if not scraping_url:
+        return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
+    
+    ids_arg = ','.join(str(i) for i in ids)
+    
+    if discord_webhook_url:
+        try:
+            from scripts.utils.discord_notifier import DiscordNotifier
+            notifier = DiscordNotifier(discord_webhook_url)
+            notifier.send_info(
+                "部分スクレイピングを開始しました。\n処理はバックグラウンドで実行されます。",
+                details={
+                    "モード": "部分スクレイピング（手動実行）",
+                    "対象ID": ids_arg
+                }
+            )
+        except Exception as e:
+            app.logger.warning(f"開始通知の送信に失敗しました: {e}")
+    
+    def run_partial():
+        try:
+            cmd = [
+                sys.executable,
+                str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
+                '--url', scraping_url,
+                '--scrape-ids', ids_arg,
+                '--analysis-ids', ids_arg
+            ]
+            if discord_webhook_url:
+                cmd.extend(['--discord-webhook', discord_webhook_url])
+            result = subprocess.run(
+                cmd,
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                app.logger.error(f"Partial scrape failed: {result.stderr}")
+            else:
+                app.logger.info(f"Partial scrape completed: {result.stdout[-500:]}")
+        except Exception as e:
+            app.logger.error(f"Partial scrape error: {e}")
+    
+    thread = threading.Thread(target=run_partial, daemon=True)
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'message': '部分スクレイピングを開始しました。処理はバックグラウンドで実行されます。'
+    })
+
+@app.route('/api/admin/trigger-analysis-only', methods=['POST'])
+@require_admin
+def api_admin_trigger_analysis_only():
+    """指定IDの解析のみを非同期で実行（スクレイピングは行わない）"""
+    data = request.json or {}
+    try:
+        ids = parse_id_list(data.get('ids'))
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    
+    scraping_url = os.environ.get('SCRAPING_BASE_URL')
+    discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+    if not scraping_url:
+        return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
+    
+    ids_arg = ','.join(str(i) for i in ids)
+    
+    if discord_webhook_url:
+        try:
+            from scripts.utils.discord_notifier import DiscordNotifier
+            notifier = DiscordNotifier(discord_webhook_url)
+            notifier.send_info(
+                "指定解析のみを開始しました。\n処理はバックグラウンドで実行されます。",
+                details={
+                    "モード": "指定解析のみ（手動実行）",
+                    "対象ID": ids_arg
+                }
+            )
+        except Exception as e:
+            app.logger.warning(f"開始通知の送信に失敗しました: {e}")
+    
+    def run_analysis_only():
+        try:
+            cmd = [
+                sys.executable,
+                str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
+                '--url', scraping_url,
+                '--skip-scraping',
+                '--skip-images',
+                '--analysis-ids', ids_arg
+            ]
+            if discord_webhook_url:
+                cmd.extend(['--discord-webhook', discord_webhook_url])
+            result = subprocess.run(
+                cmd,
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                app.logger.error(f"Analysis-only run failed: {result.stderr}")
+            else:
+                app.logger.info(f"Analysis-only run completed: {result.stdout[-500:]}")
+        except Exception as e:
+            app.logger.error(f"Analysis-only run error: {e}")
+    
+    thread = threading.Thread(target=run_analysis_only, daemon=True)
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'message': '指定解析のみを開始しました。処理はバックグラウンドで実行されます。'
+    })
+
+@app.route('/api/bug-report', methods=['POST'])
+def api_bug_report():
+    """不具合報告をDiscordに送信（匿名）"""
+    try:
+        data = request.json
+        report_text = data.get('text', '').strip()
+        
+        if not report_text:
+            return jsonify({'success': False, 'error': '報告内容が空です'}), 400
+        
+        # Discord Webhook URLを環境変数から取得
+        webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+        if not webhook_url:
+            app.logger.error("Discord Webhook URLが設定されていません")
+            return jsonify({'success': False, 'error': 'サーバー設定エラー'}), 500
+        
+        # DiscordNotifierを使用して送信
+        from scripts.utils.discord_notifier import DiscordNotifier
+        notifier = DiscordNotifier(webhook_url)
+        
+        # メッセージを送信（シンプルな形式）
+        success = notifier.send_message(
+            content=f"【不具合】\n\n{report_text}",
+            timestamp=False  # タイムスタンプなし
+        )
+        
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': '送信に失敗しました'}), 500
+            
+    except Exception as e:
+        app.logger.error(f"Bug report error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================================
 # 管理機能API: データ取得
