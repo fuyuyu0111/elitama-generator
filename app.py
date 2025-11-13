@@ -291,19 +291,39 @@ def get_alien_effects():
     """)
     rows = cur.fetchall()
     
+    # correct_effect_namesからshow_targetとshow_condition_targetを取得
+    cur.execute("""
+        SELECT correct_name, category, show_target, show_condition_target
+        FROM correct_effect_names
+    """)
+    show_flags = {}
+    for flag_row in cur.fetchall():
+        key = (flag_row['correct_name'], flag_row['category'] or '')
+        show_flags[key] = {
+            'show_target': flag_row['show_target'] if flag_row['show_target'] is not None else True,
+            'show_condition_target': flag_row['show_condition_target'] if flag_row['show_condition_target'] is not None else True
+        }
+    
     # skill_textをキーにした効果情報の辞書を作成
     effects_by_text = {}
     for row in rows:
         skill_text = row['skill_text']
+        effect_name = row['effect_name']
+        category = row['category'] or ''
+        # correct_effect_namesからshow_targetとshow_condition_targetを取得
+        flag_key = (effect_name, category)
+        flags = show_flags.get(flag_key, {'show_target': True, 'show_condition_target': True})
         effect_info = {
-            'effect_name': row['effect_name'],
+            'effect_name': effect_name,
             'target': row['target'] or '',
             'condition_target': row['condition_target'] or '',
             'effect_type': row['effect_type'] or '',
-            'category': row['category'] or '',
+            'category': category,
             'has_requirement': row['has_requirement'] or False,
             'requirement_details': row['requirement_details'] or '',
-            'requirement_count': row['requirement_count'] or 0
+            'requirement_count': row['requirement_count'] or 0,
+            'show_target': flags['show_target'],
+            'show_condition_target': flags['show_condition_target']
         }
         if skill_text not in effects_by_text:
             effects_by_text[skill_text] = []
@@ -1050,6 +1070,8 @@ def api_admin_dictionary_update_show_flags():
                 get_correct_effect_names.cache_clear()
             if hasattr(get_s_skill_effect_names, 'cache_clear'):
                 get_s_skill_effect_names.cache_clear()
+            if hasattr(get_alien_effects, 'cache_clear'):
+                get_alien_effects.cache_clear()
         except Exception as e:
             app.logger.warning(f"Cache clear warning: {e}")
         

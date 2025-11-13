@@ -52,13 +52,13 @@
             }
         }
         * { box-sizing: border-box; }
-+        button, a {
-+            -webkit-tap-highlight-color: transparent;
-+        }
-+        button:focus,
-+        a:focus {
-+            outline: none;
-+        }
+        button, a {
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:focus,
+        a:focus {
+            outline: none;
+        }
 
         /* ==========================================================================
             全体レイアウト
@@ -85,7 +85,7 @@
             width: auto;
             object-fit: contain;
         }
-         /* 管理モード時はネオンカラーをすべてオレンジに */
+        /* 管理モード時はネオンカラーをすべてオレンジに */
         body.admin-mode,
         body.admin-mode * {
             --accent-green: #ff8800 !important;
@@ -425,7 +425,6 @@
         .skills-area-detail-view .skill-block > .skill-label { 
             display: none; 
         }
-        
         .skills-area-detail-view .skill-name-display .skill-label {
             display: block;
         }
@@ -1102,7 +1101,6 @@
         .party-slot.drag-over { border-color: #f0ad4e; transform: scale(1.02); }
         .slot-icon { -webkit-user-drag: element; }
         .icon-placeholder.drag-over { border-color: #f0ad4e; transform: scale(1.02); }
-
         /* ==========================================================================
             長押しプレビュー機能
            ========================================================================== */
@@ -1318,7 +1316,7 @@
                 <div class="overview-button-label">一覧表示</div>
             </div>
             <div class="header-title-container">
-                <span id="header-title">エリジェネ</span>
+            <span id="header-title">エリジェネ</span>
                 <img src="/static/main_icon.png" alt="エリジェネアイコン" class="header-title-icon">
             </div>
             <div class="header-help-container">
@@ -1805,14 +1803,12 @@
     const ALL_ALIENS = {{ all_aliens | tojson | safe }};
     const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
     const ALL_EFFECTS = {{ all_effects | tojson | safe }};
-    // (新) 特技用効果辞書
     const S_SKILL_EFFECTS = {{ s_skill_effects | tojson | safe }};
-    // (新) エイリアンごとの効果リスト（絞り込み用）
     const ALIEN_EFFECTS = {{ alien_effects | tojson | safe }};
     
-    // ==========================================================================
+    // ======================================================================
     //  効果型・カテゴリの日本語化関数
-    // ==========================================================================
+    // ======================================================================
     function getEffectTypeDisplayName(effectType) {
         const typeMap = {
             'BUFF': 'バフ',
@@ -2200,7 +2196,6 @@
             });
         });
     }
-
     function showLongPressPreview(alienDataSet) {
         if (!alienDataSet || !alienDataSet.id) {
             console.error('showLongPressPreview: Invalid alienDataSet', alienDataSet);
@@ -2556,7 +2551,7 @@
             if (isOccupied) {
                 if (alienData.attack_range) attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.attack_range}.png">`;
                 if (alienData.attack_area) attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.attack_area}.png">`;
-                if (alienData.affiliation) attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.affiliation}.png">`;
+                if (alienData.affiliation) attackHtml += `<img class="info-icon" src="/static/icon/${alienData.affiliation}.png">`;
             }
             
             // タイプ（未編成時も同じ構造で表示）
@@ -2665,7 +2660,6 @@
     //
     // △△△ ここまでを置き換え △△△
     //
-
     /**
      * ドロワー内のパーティプレビューを更新
      */
@@ -2837,7 +2831,6 @@
             }
         }
     }
-
     function handlePreviewDragEnd(e) {
         if (!previewDragState.active) return;
         
@@ -3139,9 +3132,10 @@
         });
     }
 //
-    // ▽▽▽ 1290行目～： 既存の checkPartyRealtime 関数を、以下に丸ごと置き換え ▽▽▽
-    //
-    // --- 要求判定ロジック ---
+    // ======================================================================
+    //  効果型・カテゴリの日本語化関数
+    // ======================================================================
+
     /**
      * (修正) member.id の参照方法を修正
      */
@@ -3169,7 +3163,7 @@
                 
                 // ！！！ (注) ALL_ALIENS のキーは文字列IDなので other.id を使う ！！！
                 const alien = ALL_ALIENS[other.id]; 
-                if (!alien) return; 
+                if (!alien) return;
 
                 alliesTotalCount++; 
                 if (alien.attribute) counts.a[alien.attribute] = (counts.a[alien.attribute] || 0) + 1;
@@ -3323,7 +3317,8 @@
                         if (normalizedEffectName !== selectedEffect.effect_name) return false;
                         
                         if (selectedEffect.targets.size > 0) {
-                            const effectTargets = effect.target ? 
+                            const showTarget = effect.show_target !== false;
+                            const effectTargets = (showTarget && effect.target) ? 
                                 new Set(effect.target.split(',').map(t => t.trim()).filter(t => t)) : 
                                 new Set();
                             const hasMatch = Array.from(effectTargets).some(t => selectedEffect.targets.has(t));
@@ -3331,7 +3326,8 @@
                         }
                         
                         if (selectedEffect.conditions.size > 0) {
-                            const effectConditions = effect.condition_target ? 
+                            const showConditionTarget = effect.show_condition_target !== false;
+                            const effectConditions = (showConditionTarget && effect.condition_target) ? 
                                 new Set(effect.condition_target.split(',').map(c => c.trim()).filter(c => c)) : 
                                 new Set();
                             const hasMatch = Array.from(effectConditions).some(c => selectedEffect.conditions.has(c));
@@ -3352,7 +3348,8 @@
                         if (normalizedEffectName !== selectedEffect.effect_name) return false;
                         
                         if (selectedEffect.targets.size > 0) {
-                            const effectTargets = effect.target ? 
+                            const showTarget = effect.show_target !== false;
+                            const effectTargets = (showTarget && effect.target) ? 
                                 new Set(effect.target.split(',').map(t => t.trim()).filter(t => t)) : 
                                 new Set();
                             const hasMatch = Array.from(effectTargets).some(t => selectedEffect.targets.has(t));
@@ -3360,7 +3357,8 @@
                         }
                         
                         if (selectedEffect.conditions.size > 0) {
-                            const effectConditions = effect.condition_target ? 
+                            const showConditionTarget = effect.show_condition_target !== false;
+                            const effectConditions = (showConditionTarget && effect.condition_target) ? 
                                 new Set(effect.condition_target.split(',').map(c => c.trim()).filter(c => c)) : 
                                 new Set();
                             const hasMatch = Array.from(effectConditions).some(c => selectedEffect.conditions.has(c));
@@ -3846,7 +3844,7 @@
             resetBtn.textContent = 'リセット';
             resetBtn.dataset.key = 'effect-reset';
             resetBtn.style.fontSize = '1.2vh';
-            resetBtn.style.padding = '0.4vh 1vh';
+            resetBtn.style.padding = '0.4v 1vh';
             
             // 右端に配置するためのコンテナ
             const rightButtonsContainer = document.createElement('div');
@@ -4461,12 +4459,12 @@
                                     const normalizedEffectName = currentEffectTab === 'special' ? normalizeEffectName(effectName) : effectName;
                                     const normalizedDbEffectName = currentEffectTab === 'special' ? normalizeEffectName(effect.effect_name) : effect.effect_name;
                                     if (normalizedDbEffectName === normalizedEffectName) {
-                                        if (effect.target) {
+                                        if (effect.show_target && effect.target) {
                                             effect.target.split(',').forEach(t => {
                                                 if (t.trim()) availableTargets.add(t.trim());
                                             });
                                         }
-                                        if (effect.condition_target) {
+                                        if (effect.show_condition_target && effect.condition_target) {
                                             effect.condition_target.split(',').forEach(c => {
                                                 if (c.trim()) availableConditionTargets.add(c.trim());
                                             });
@@ -4476,6 +4474,18 @@
                             });
                         });
                         
+                        // 特技タブではtarget/condition_targetを表示しない（detailExpander自体も作成しない）
+                        if (currentEffectTab === 'special') {
+                            // 特技タブ時はdetailExpanderを作成せずに終了
+                            return;
+                        }
+                        
+                        // show_targetとshow_condition_targetが両方falseの場合はdetailExpanderを作成しない
+                        if (availableTargets.size === 0 && availableConditionTargets.size === 0) {
+                            return;
+                        }
+                        
+                        // 個性タブでのみdetailExpanderを作成
                         detailExpander = document.createElement('div');
                         detailExpander.className = 'effect-detail-expander';
                         detailExpander.style.width = '100%';
@@ -4484,14 +4494,6 @@
                         detailExpander.style.backgroundColor = 'rgba(200, 200, 200, 0.15)';
                         detailExpander.style.borderRadius = '4px';
                         detailExpander.style.border = '1px solid rgba(150, 150, 150, 0.3)';
-                        
-                        // 特技タブではtarget/condition_targetを表示しない（detailExpander自体も作成しない）
-                        if (currentEffectTab === 'special') {
-                            // 特技タブ時はdetailExpanderを作成せずに終了
-                            return;
-                        }
-                        
-                        // 個性タブでのみdetailExpanderを作成
                         
                         if (availableTargets.size > 0) {
                             const targetSection = document.createElement('div');
@@ -4868,7 +4870,6 @@
             switchParty('prev');
         }
     }
-
     /**
      * タブボタンのfiltered状態を更新する関数（グローバルスコープ）
      */
@@ -5366,7 +5367,6 @@
         renderPartyOverview();
         overviewOverlay.classList.add('active');
     }
-    
     /**
      * 一覧表示を閉じる
      */
@@ -6700,7 +6700,6 @@
             content.innerHTML = '<p>辞書データの読み込みに失敗しました。</p>';
         }
     };
-    
     /**
      * 辞書で効果を選択
      */
@@ -6731,6 +6730,11 @@
                 return;
             }
             
+            const showTargetFlag = effectInfo.show_target !== false;
+            const showConditionTargetFlag = effectInfo.show_condition_target !== false;
+            const targetDescription = showTargetFlag ? (effectInfo.target || '(なし)') : '（表示しない設定）';
+            const conditionDescription = showConditionTargetFlag ? (effectInfo.condition_target || '(なし)') : '（表示しない設定）';
+            
             // 表示/非表示制御モーダルを表示
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -6748,18 +6752,18 @@
                         <strong>カテゴリ:</strong> ${category || '(なし)'}
                     </div>
                     <div style="margin-bottom: 1vh;">
-                        <strong>バフ/デバフ対象:</strong> ${effectInfo.target || '(なし)'}
+                        <strong>バフ/デバフ対象:</strong> ${targetDescription}
                     </div>
                     <div style="margin-bottom: 1vh;">
-                        <strong>効果対象:</strong> ${effectInfo.condition_target || '(なし)'}
+                        <strong>効果対象:</strong> ${conditionDescription}
                     </div>
                     <div style="margin-bottom: 1vh; padding: 1vh; background-color: #1a2a3a; border-radius: 0.3vh;">
                         <label style="display: flex; align-items: center; margin-bottom: 0.5vh;">
-                            <input type="checkbox" id="show-target-checkbox" ${effectInfo.show_target !== false ? 'checked' : ''} style="margin-right: 0.5vh;">
+                            <input type="checkbox" id="show-target-checkbox" ${showTargetFlag ? 'checked' : ''} style="margin-right: 0.5vh;">
                             <strong>バフ/デバフ対象を表示する</strong>
                         </label>
                         <label style="display: flex; align-items: center;">
-                            <input type="checkbox" id="show-condition-target-checkbox" ${effectInfo.show_condition_target !== false ? 'checked' : ''} style="margin-right: 0.5vh;">
+                            <input type="checkbox" id="show-condition-target-checkbox" ${showConditionTargetFlag ? 'checked' : ''} style="margin-right: 0.5vh;">
                             <strong>効果対象を表示する</strong>
                         </label>
                     </div>
@@ -7030,7 +7034,6 @@
             alert('置換モーダルの表示に失敗しました');
         }
     };
-    
     /**
      * 辞書に新規効果を追加
      */
@@ -7779,7 +7782,6 @@
     };
     document.getElementById('dictionary-button').addEventListener('click', dictionaryButtonHandler);
     document.querySelector('.dictionary-button-label').addEventListener('click', dictionaryButtonHandler);
-    
     /**
      * 個性・特技管理モーダルを開く
      */
@@ -8192,6 +8194,20 @@
                     const isMarkedForDelete = !effect._isPending && deletedEffectNames.has(effect.effect_name);
                     const deleteLabel = isMarkedForDelete ? `<span style="background-color: #f87171; color: white; padding: 0.2vh 0.5vh; border-radius: 0.2vh; font-size: 1.1vh; margin-left: 0.5vh;">削除</span>` : '';
                     const deleteBorderStyle = isMarkedForDelete ? 'border: 2px dashed #f87171; opacity: 0.6;' : '';
+                    const showTarget = effect.show_target !== false;
+                    const showConditionTarget = effect.show_condition_target !== false;
+                    const targetDisplayHtml = showTarget && effect.target
+                        ? formatTargetDisplay(effect.target)
+                        : '（表示しない設定）';
+                    const conditionDisplayHtml = showConditionTarget && effect.condition_target
+                        ? formatTargetDisplay(effect.condition_target)
+                        : '（表示しない設定）';
+                    const targetSpanAttr = invalidFields.includes('target')
+                        ? 'style="color: #ff6666;"'
+                        : (showTarget ? '' : 'style="color: #666;"');
+                    const conditionSpanAttr = invalidFields.includes('condition_target')
+                        ? 'style="color: #ff6666;"'
+                        : (showConditionTarget ? '' : 'style="color: #666;"');
                     
                     return `
                     <div class="effect-item" data-effect-id="${effectId}" data-effect-index="${idx}" style="${borderStyle} ${deleteBorderStyle} padding: 1vh; margin-bottom: 1vh; border-radius: 0.5vh; position: relative;">
@@ -8204,11 +8220,11 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5vh; margin-bottom: 0.5vh; align-items: center; font-size: 1.2vh;">
                             <div>
                                 <span style="color: #aaa;">バフ/デバフ対象:</span>
-                                <span ${invalidFields.includes('target') ? 'style="color: #ff6666;"' : ''}>${formatTargetDisplay(effect.target)}</span>
+                                <span ${targetSpanAttr}>${targetDisplayHtml}</span>
                             </div>
                             <div>
                                 <span style="color: #aaa;">効果対象:</span>
-                                <span ${invalidFields.includes('condition_target') ? 'style="color: #ff6666;"' : ''}>${effect.condition_target ? formatTargetDisplay(effect.condition_target) : 'なし'}</span>
+                                <span ${conditionSpanAttr}>${conditionDisplayHtml}</span>
                             </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 1.2vh;">
@@ -8229,7 +8245,6 @@
                 <button class="control-button" onclick="addNewEffect('${skillText.replace(/'/g, "\\'")}')" style="background-color: var(--accent-green); color: var(--dark-bg); padding: 0.8vh 2vh;">効果を追加</button>
             </div>
         `;
-        
         // グローバル関数として定義（onclickで使用するため）
         window.addNewEffect = (text) => {
             // skill_textが特技か個性かを判定
@@ -8503,7 +8518,6 @@
                     }
                 });
             };
-            
             const openNewSlotConditionTargetSelector = () => {
                 let tempSelectedConditionTargets = [...newSlotSelectedConditionTargets];
                 const selectorModal = document.createElement('div');
@@ -9145,7 +9159,6 @@
                     return { type, value, is_not: isNot };
                 }).filter(r => r.type && r.value);
             }
-            
             // 表示更新関数（addNewEffectと同じ）
             const updateEditSlotTargetDisplay = () => {
                 const targetContainer = editSlot.querySelector('#edit-slot-target-selector');
@@ -9644,7 +9657,6 @@
                     </div>
                 </div>
             `;
-            
             // 既存の表示を更新
             updateEditSlotTargetDisplay();
             updateEditSlotConditionTargetDisplay();
