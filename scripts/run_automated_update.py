@@ -192,6 +192,66 @@ def get_skill_texts_for_alien_ids(conn, alien_ids: List[int]) -> Tuple[Set[str],
     return regular_skills, special_skills
 
 
+def get_unanalyzed_skill_texts_for_alien_ids(conn, alien_ids: List[int]) -> Tuple[Set[str], Set[str]]:
+    """
+    指定したエイリアンIDから未解析個性・特技テキストを取得
+    
+    Args:
+        conn: データベース接続
+        alien_ids: エイリアンIDリスト
+    
+    Returns:
+        (未解析個性テキストのセット, 未解析特技テキストのセット)
+    """
+    regular_skills = set()
+    special_skills = set()
+    
+    if not alien_ids:
+        return regular_skills, special_skills
+    
+    try:
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            placeholders = ','.join(['%s'] * len(alien_ids))
+            # 未解析個性テキストを取得
+            cur.execute(f"""
+                WITH analyzed_texts AS (
+                    SELECT DISTINCT skill_text FROM skill_text_verified_effects
+                )
+                SELECT DISTINCT skill_text
+                FROM (
+                    SELECT skill_text1 as skill_text FROM alien WHERE id IN ({placeholders}) AND skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+                    UNION 
+                    SELECT skill_text2 FROM alien WHERE id IN ({placeholders}) AND skill_text2 IS NOT NULL AND skill_text2 != 'なし'
+                    UNION 
+                    SELECT skill_text3 FROM alien WHERE id IN ({placeholders}) AND skill_text3 IS NOT NULL AND skill_text3 != 'なし'
+                ) all_texts
+                WHERE skill_text NOT IN (SELECT skill_text FROM analyzed_texts)
+            """, alien_ids * 3)
+            for row in cur.fetchall():
+                if row['skill_text']:
+                    regular_skills.add(row['skill_text'])
+            
+            # 未解析特技テキストを取得
+            cur.execute(f"""
+                WITH analyzed_texts AS (
+                    SELECT DISTINCT skill_text FROM skill_text_verified_effects
+                )
+                SELECT DISTINCT "S_Skill_text" as skill_text
+                FROM alien
+                WHERE id IN ({placeholders})
+                  AND "S_Skill_text" IS NOT NULL 
+                  AND "S_Skill_text" != 'なし'
+                  AND "S_Skill_text" NOT IN (SELECT skill_text FROM analyzed_texts)
+            """, alien_ids)
+            for row in cur.fetchall():
+                if row['skill_text']:
+                    special_skills.add(row['skill_text'])
+    except Exception as e:
+        print(f"未解析スキルテキスト取得エラー: {e}")
+    
+    return regular_skills, special_skills
+
+
 def get_analysis_results_for_skills(conn, skill_texts: Set[str], skill_type: str = "regular") -> Dict[str, List[Dict]]:
     """
     指定されたスキルテキストの解析結果を取得
@@ -602,15 +662,6 @@ def main(
         return 1
     
     try:
-        # ステップ0: スクレイピング前の個性・特技テキストを取得
-        print("=" * 80)
-        print("ステップ0: 変更検知の準備（現在の個性・特技テキストを取得）")
-        print("=" * 80)
-        
-        before_regular_skills, before_special_skills = get_current_skill_texts(conn)
-        print(f"スクレイピング前: 個性テキスト {len(before_regular_skills)}件, 特技テキスト {len(before_special_skills)}件")
-        print("ステップ0完了")
-        
         # ステップ1: スクレイピング＋画像取得
         print("\n" + "=" * 80)
         print("ステップ1: スクレイピングと画像取得")
@@ -685,48 +736,50 @@ def main(
                 # スクレイピングが失敗した場合は処理を中断
                 return 1
         
-        # ステップ2: 変更検知
+        # ステップ2: スクレイピング対象IDから未解析個性・特技を取得
         print("\n" + "=" * 80)
-        print("ステップ2: 変更検知（変更・追加された個性・特技テキストを検出）")
+        print("ステップ2: スクレイピング対象IDから未解析個性・特技を取得")
         print("=" * 80)
         
         # スクレイピングに時間を要した場合に備え、接続を確認
         conn = ensure_connection(conn)
         
-        changed_regular_skills, changed_special_skills = detect_changed_skill_texts(
-            conn,
-            before_regular_skills,
-            before_special_skills,
-            analysis_ids=effective_analysis_ids if effective_analysis_ids else None
-        )
+        # スクレイピング対象IDを決定（DBに実際に保存されたIDを参照）
+        target_alien_ids = set()
+        if skip_scraping:
+            # スクレイピングをスキップした場合、指定された解析IDを使用
+            if effective_analysis_ids:
+                target_alien_ids = set(effective_analysis_ids)
+        else:
+            # スクレイピング完了後、スクレイピング対象IDを使用
+            if scrape_id_list:
+                # 部分スクレイピングの場合、指定されたIDは全てスクレイピングされた（DBに保存済み）
+                target_alien_ids = set(scrape_id_list)
+            elif new_alien_ids:
+                # 逆順スクレイピングまたは全体スクレイピングの場合、新規追加IDを使用（DBに保存済み）
+                target_alien_ids = set(new_alien_ids)
         
-        forced_regular_skills = set()
-        forced_special_skills = set()
-        valid_analysis_ids: List[int] = []
+        # 指定された解析IDがある場合は追加（解析専用モードの場合）
         if effective_analysis_ids:
-            valid_analysis_ids = sorted({int(aid) for aid in effective_analysis_ids if isinstance(aid, int)})
-            if valid_analysis_ids:
-                print(f"  -> 解析対象として指定されたID: {valid_analysis_ids}")
-                forced_regular_skills, forced_special_skills = get_skill_texts_for_alien_ids(conn, valid_analysis_ids)
-                if not forced_regular_skills and not forced_special_skills:
-                    print("    指定IDに解析対象となる個性・特技テキストが見つかりませんでした。")
-                else:
-                    print(f"    個性テキスト追加: {len(forced_regular_skills)}件, 特技テキスト追加: {len(forced_special_skills)}件")
-                    changed_regular_skills |= forced_regular_skills
-                    changed_special_skills |= forced_special_skills
+            target_alien_ids.update(effective_analysis_ids)
         
-        # 更新されたエイリアンIDを取得
-        updated_alien_ids = get_updated_alien_ids(conn, changed_regular_skills, changed_special_skills)
-        if valid_analysis_ids:
-            updated_alien_ids = list(set(updated_alien_ids + valid_analysis_ids))
+        target_alien_ids = sorted(target_alien_ids)
         
-        print(f"変更・追加検出: 個性テキスト {len(changed_regular_skills)}件, 特技テキスト {len(changed_special_skills)}件")
-        if changed_regular_skills:
-            print(f"変更・追加された個性テキスト（最初の5件）: {list(changed_regular_skills)[:5]}")
-        if changed_special_skills:
-            print(f"変更・追加された特技テキスト（最初の5件）: {list(changed_special_skills)[:5]}")
+        if not target_alien_ids:
+            print("解析対象となるエイリアンIDがありません。")
+            changed_regular_skills = set()
+            changed_special_skills = set()
+        else:
+            print(f"スクレイピング対象ID: {target_alien_ids}")
+            # スクレイピング対象IDから未解析個性・特技を取得
+            changed_regular_skills, changed_special_skills = get_unanalyzed_skill_texts_for_alien_ids(conn, target_alien_ids)
+            print(f"未解析個性・特技検出: 個性テキスト {len(changed_regular_skills)}件, 特技テキスト {len(changed_special_skills)}件")
+            if changed_regular_skills:
+                print(f"未解析個性テキスト（最初の5件）: {list(changed_regular_skills)[:5]}")
+            if changed_special_skills:
+                print(f"未解析特技テキスト（最初の5件）: {list(changed_special_skills)[:5]}")
         
-        # ステップ3: LLM解析（変更・追加されたテキストがある場合のみ）
+        # ステップ3: LLM解析（未解析個性・特技がある場合のみ）
         if not skip_analysis and (changed_regular_skills or changed_special_skills):
             print("\n" + "=" * 80)
             print("ステップ3: LLM解析（変更・追加された個性・特技テキストを解析）")
@@ -737,7 +790,7 @@ def main(
                 try:
                     print("\n--- 3-1: 個性テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=effective_analysis_ids if effective_analysis_ids else None)
+                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=target_alien_ids if target_alien_ids else None)
                     if success:
                         print(f"個性解析完了: {message}")
                         # 解析結果を取得
@@ -760,7 +813,7 @@ def main(
                 try:
                     print("\n--- 3-2: 特技テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=effective_analysis_ids if effective_analysis_ids else None)
+                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=target_alien_ids if target_alien_ids else None)
                     if success:
                         print(f"特技解析完了: {message}")
                         # 解析結果を取得
@@ -804,11 +857,13 @@ def main(
                 conn = ensure_connection(conn)
                 new_alien_names = get_alien_names_by_ids(conn, new_alien_ids)
             
-            # 更新エイリアン名を取得
+            # 更新エイリアン名を取得（スクレイピング対象IDから新規追加IDを除外）
             updated_alien_names = {}
-            if updated_alien_ids:
-                conn = ensure_connection(conn)
-                updated_alien_names = get_alien_names_by_ids(conn, updated_alien_ids)
+            if target_alien_ids and new_alien_ids:
+                updated_target_ids = [aid for aid in target_alien_ids if aid not in set(new_alien_ids)]
+                if updated_target_ids:
+                    conn = ensure_connection(conn)
+                    updated_alien_names = get_alien_names_by_ids(conn, updated_target_ids)
             
             # 追加・更新・エラーのいずれかがある場合のみ送信
             if new_alien_names or updated_alien_names or error_info:
