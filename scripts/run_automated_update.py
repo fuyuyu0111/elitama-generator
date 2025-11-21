@@ -74,6 +74,33 @@ def get_alien_names_by_ids(conn, alien_ids: List[int]) -> Dict[int, str]:
         return {}
 
 
+def get_existing_alien_ids(conn, alien_ids: List[int]) -> List[int]:
+    """
+    指定されたエイリアンIDのうち、DBに存在するIDのみを取得
+    
+    Args:
+        conn: データベース接続
+        alien_ids: エイリアンIDリスト
+    
+    Returns:
+        DBに存在するエイリアンIDリスト
+    """
+    if not alien_ids:
+        return []
+    
+    try:
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            placeholders = ','.join(['%s'] * len(alien_ids))
+            cur.execute(
+                f"SELECT id FROM alien WHERE id IN ({placeholders})",
+                alien_ids
+            )
+            return [row['id'] for row in cur.fetchall()]
+    except Exception as e:
+        print(f"既存ID取得エラー: {e}")
+        return []
+
+
 def get_skill_texts_for_alien_ids(conn, alien_ids: List[int]) -> Tuple[Set[str], Set[str]]:
     """
     指定したエイリアンIDの個性・特技テキストを取得
@@ -579,21 +606,38 @@ def main(
         # スクレイピング対象IDを決定（DBに実際に保存されたIDを参照）
         target_alien_ids = set()
         if skip_scraping:
-            # スクレイピングをスキップした場合、指定された解析IDを使用
+            # スクレイピングをスキップした場合、指定された解析IDのうちDBに存在するもののみを使用
             if effective_analysis_ids:
-                target_alien_ids = set(effective_analysis_ids)
+                existing_ids = get_existing_alien_ids(conn, effective_analysis_ids)
+                target_alien_ids = set(existing_ids)
+                if len(existing_ids) < len(effective_analysis_ids):
+                    missing_ids = set(effective_analysis_ids) - set(existing_ids)
+                    print(f"  -> 警告: 以下のIDはDBに存在しません: {sorted(missing_ids)}")
         else:
             # スクレイピング完了後、スクレイピング対象IDを使用
             if scrape_id_list:
-                # 部分スクレイピングの場合、指定されたIDは全てスクレイピングされた（DBに保存済み）
-                target_alien_ids = set(scrape_id_list)
+                # 部分スクレイピングの場合、実際にスクレイピングされたIDのみを使用
+                # 新規追加IDと、スクレイピング後にDBに存在する更新されたIDを含める
+                scraped_ids = set(new_alien_ids) if new_alien_ids else set()
+                # スクレイピング後にDBに存在するIDを確認（新規追加 + 更新されたID）
+                existing_from_scrape_list = get_existing_alien_ids(conn, scrape_id_list)
+                scraped_ids.update(existing_from_scrape_list)
+                target_alien_ids = scraped_ids
+                if len(scraped_ids) < len(scrape_id_list):
+                    missing_ids = set(scrape_id_list) - scraped_ids
+                    print(f"  -> 警告: 以下のIDはスクレイピングされませんでした: {sorted(missing_ids)}")
             elif new_alien_ids:
                 # 逆順スクレイピングまたは全体スクレイピングの場合、新規追加IDを使用（DBに保存済み）
                 target_alien_ids = set(new_alien_ids)
         
-        # 指定された解析IDがある場合は追加（解析専用モードの場合）
-        if effective_analysis_ids:
-            target_alien_ids.update(effective_analysis_ids)
+        # 指定された解析IDがある場合は追加（スクレイピング後に追加で解析したい場合）
+        # ただし、既にtarget_alien_idsに含まれている場合はスキップ
+        if effective_analysis_ids and not skip_scraping:
+            existing_ids = get_existing_alien_ids(conn, effective_analysis_ids)
+            target_alien_ids.update(existing_ids)
+            if len(existing_ids) < len(effective_analysis_ids):
+                missing_ids = set(effective_analysis_ids) - set(existing_ids)
+                print(f"  -> 警告: 以下のIDはDBに存在しません: {sorted(missing_ids)}")
         
         target_alien_ids = sorted(target_alien_ids)
         
