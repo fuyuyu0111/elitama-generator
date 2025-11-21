@@ -1310,11 +1310,12 @@ def main():
     args = parse_args()
 
     # APIキー取得
-    # --unanalyzed-only の場合はテスト用APIキーを使用、それ以外は本番用APIキーを使用
+    # --unanalyzed-only の場合はテスト用APIキーを優先、なければ本番用APIキーを使用
+    # それ以外は本番用APIキーを優先、なければテスト用APIキーを使用
     if args.unanalyzed_only:
-        api_key = os.getenv("GEMINI_API_KEY_1")
+        api_key = os.getenv("GEMINI_API_KEY_1") or os.getenv("GEMINI_API_KEY_2")
         if not api_key:
-            raise RuntimeError("APIキーが環境変数 GEMINI_API_KEY_1 に設定されていません。")
+            raise RuntimeError("APIキーが環境変数 GEMINI_API_KEY_1 または GEMINI_API_KEY_2 に設定されていません。")
     else:
         # 本番実行時は別のAPIキーを使用
         api_key = os.getenv("GEMINI_API_KEY_2") or os.getenv("GEMINI_API_KEY_1")

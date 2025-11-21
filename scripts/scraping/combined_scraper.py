@@ -249,7 +249,12 @@ def download_images_for_new_aliens(
         print(f"  -> 図鑑No.{alien_id} の画像をダウンロード中...")
         if download_image(session, image_url, save_filepath):
             downloaded_count += 1
-            print(f"    -> 完了: {save_filename}")
+            # 保存後の確認
+            if os.path.exists(save_filepath):
+                file_size = os.path.getsize(save_filepath)
+                print(f"    -> 完了: {save_filename} (サイズ: {file_size} bytes, パス: {save_filepath})")
+            else:
+                print(f"    -> 警告: {save_filename} のダウンロードは成功したが、ファイルが存在しません")
         time.sleep(0.5)  # サーバー負荷軽減
     
     return downloaded_count
