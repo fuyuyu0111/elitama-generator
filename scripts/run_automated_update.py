@@ -350,7 +350,7 @@ def delete_existing_analysis(conn, skill_texts: Set[str]) -> None:
         conn.rollback()
 
 
-def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = "regular") -> Tuple[bool, str]:
+def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = "regular", alien_ids: Optional[List[int]] = None) -> Tuple[bool, str]:
     """
     指定された個性または特技テキストをLLMで解析
     
@@ -358,6 +358,7 @@ def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = 
         conn: データベース接続
         skill_texts: 解析対象のスキルテキストセット
         skill_type: "regular"（個性）または"special"（特技）
+        alien_ids: 解析対象のエイリアンIDリスト（指定された場合、そのIDのみを解析）
     
     Returns:
         (成功した場合True, メッセージ)
@@ -398,6 +399,11 @@ def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = 
             skill_type_name = "特技"
         else:
             return False, f"無効なskill_type: {skill_type}（'regular'または'special'を指定してください）"
+        
+        # alien_idsが指定されている場合、--alien-idsオプションを追加
+        if alien_ids:
+            ids_arg = ','.join(str(i) for i in alien_ids)
+            cmd.extend(['--alien-ids', ids_arg])
         
         result = subprocess.run(
             cmd,
@@ -731,7 +737,7 @@ def main(
                 try:
                     print("\n--- 3-1: 個性テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular")
+                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=effective_analysis_ids if effective_analysis_ids else None)
                     if success:
                         print(f"個性解析完了: {message}")
                         # 解析結果を取得
@@ -754,7 +760,7 @@ def main(
                 try:
                     print("\n--- 3-2: 特技テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special")
+                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=effective_analysis_ids if effective_analysis_ids else None)
                     if success:
                         print(f"特技解析完了: {message}")
                         # 解析結果を取得

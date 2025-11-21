@@ -261,43 +261,77 @@ def auto_complete_classification(effect_name: str, conn) -> Tuple[Optional[str],
 
 
 # --- キャラクター単位で個性テキスト取得（1キャラ3個性ずつ） ---
-def fetch_characters_with_skills_from_db(conn, limit: Optional[int] = None, offset: int = 0, unanalyzed_only: bool = False) -> List[Dict]:
+def fetch_characters_with_skills_from_db(conn, limit: Optional[int] = None, offset: int = 0, unanalyzed_only: bool = False, alien_ids: Optional[List[int]] = None) -> List[Dict]:
     """
     1キャラ（3個性）ずつ取得
     
     Args:
         unanalyzed_only: Trueの場合、未解析の個性テキストを持つキャラのみを取得
+        alien_ids: 特定のエイリアンIDリスト（指定された場合、そのIDのみを取得）
     
     Returns:
         List of dicts with keys: id, skill_text1, skill_text2, skill_text3
     """
     if unanalyzed_only:
         # 未解析の個性テキストを持つキャラのみを取得
-        query = """
-        WITH analyzed_texts AS (
-            SELECT DISTINCT skill_text FROM {verified_table}
-        )
-        SELECT a.id, a.skill_text1, a.skill_text2, a.skill_text3
-        FROM {alien_table} a
-        WHERE (
-            (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND a.skill_text1 NOT IN (SELECT skill_text FROM analyzed_texts))
-            OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND a.skill_text2 NOT IN (SELECT skill_text FROM analyzed_texts))
-            OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND a.skill_text3 NOT IN (SELECT skill_text FROM analyzed_texts))
-        )
-        ORDER BY a.id
-        """.format(alien_table=SOURCE_TABLE_ALIEN, verified_table=DEST_TABLE)
-    else:
-        # 全てのキャラを取得
-        query = """
-        SELECT id, skill_text1, skill_text2, skill_text3
-        FROM {alien_table}
-        WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-           OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-           OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-        ORDER BY id
-        """.format(alien_table=SOURCE_TABLE_ALIEN)
+        if alien_ids:
+            # 特定のIDのみを取得
+            id_placeholders = ','.join(['%s'] * len(alien_ids))
+            query = f"""
+            WITH analyzed_texts AS (
+                SELECT DISTINCT skill_text FROM {DEST_TABLE}
+            )
+            SELECT a.id, a.skill_text1, a.skill_text2, a.skill_text3
+            FROM {SOURCE_TABLE_ALIEN} a
+            WHERE a.id IN ({id_placeholders})
+              AND (
+                  (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND a.skill_text1 NOT IN (SELECT skill_text FROM analyzed_texts))
+                  OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND a.skill_text2 NOT IN (SELECT skill_text FROM analyzed_texts))
+                  OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND a.skill_text3 NOT IN (SELECT skill_text FROM analyzed_texts))
+              )
+            ORDER BY a.id
+            """
+        else:
+            query = f"""
+            WITH analyzed_texts AS (
+                SELECT DISTINCT skill_text FROM {DEST_TABLE}
+            )
+            SELECT a.id, a.skill_text1, a.skill_text2, a.skill_text3
+            FROM {SOURCE_TABLE_ALIEN} a
+            WHERE (
+                (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND a.skill_text1 NOT IN (SELECT skill_text FROM analyzed_texts))
+                OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND a.skill_text2 NOT IN (SELECT skill_text FROM analyzed_texts))
+                OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND a.skill_text3 NOT IN (SELECT skill_text FROM analyzed_texts))
+            )
+            ORDER BY a.id
+            """
+        else:
+            # 全てのキャラを取得
+            if alien_ids:
+                # 特定のIDのみを取得
+                id_placeholders = ','.join(['%s'] * len(alien_ids))
+                query = f"""
+                SELECT id, skill_text1, skill_text2, skill_text3
+                FROM {SOURCE_TABLE_ALIEN}
+                WHERE id IN ({id_placeholders})
+                  AND (skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+                       OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
+                       OR skill_text3 IS NOT NULL AND skill_text3 != 'なし')
+                ORDER BY id
+                """
+        else:
+            query = f"""
+            SELECT id, skill_text1, skill_text2, skill_text3
+            FROM {SOURCE_TABLE_ALIEN}
+            WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+               OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
+               OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
+            ORDER BY id
+            """
     
     params = []
+    if alien_ids:
+        params.extend(alien_ids)
     if limit is not None:
         query += " LIMIT %s"
         params.append(limit)
@@ -1288,6 +1322,39 @@ def save_extraction_backup(rows: List[Tuple], timestamp: str) -> Path:
         return None
 
 
+# --- ID引数展開 ---
+def expand_id_argument(raw: str) -> List[int]:
+    """
+    文字列で指定されたIDリスト/範囲を展開して整数配列に変換
+    例: "1611,1614-1616" -> [1611, 1614, 1615, 1616]
+    """
+    if not raw:
+        return []
+    sanitized = raw.replace('、', ',').replace(' ', '')
+    tokens = [token for token in sanitized.split(',') if token]
+    ids: Set[int] = set()
+    for token in tokens:
+        if '-' in token:
+            parts = token.split('-', 1)
+            if len(parts) != 2:
+                raise ValueError('IDの形式が正しくありません (例: 1601,1603-1605)')
+            start_str, end_str = parts
+            if not start_str.isdigit() or not end_str.isdigit():
+                raise ValueError('IDは整数で指定してください')
+            start = int(start_str)
+            end = int(end_str)
+            step = 1 if end >= start else -1
+            for value in range(start, end + step, step):
+                ids.add(value)
+        else:
+            if not token.isdigit():
+                raise ValueError('IDは整数で指定してください')
+            ids.add(int(token))
+    if not ids:
+        raise ValueError('1つ以上のIDを指定してください')
+    return sorted(ids)
+
+
 # --- 引数パース ---
 def parse_args() -> argparse.Namespace:
     """コマンドライン引数のパース"""
@@ -1300,6 +1367,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--regular-skills-only", action="store_true", help="個性テキストのみ処理（特技除外）")
     parser.add_argument("--special-skills-only", action="store_true", help="特技テキストのみ処理（個性除外）")
     parser.add_argument("--sequential-check", action="store_true", help="逐次処理でAIが2重チェック（時間はかかるが精度重視）")
+    parser.add_argument("--alien-ids", type=str, help="解析対象のエイリアンID（カンマ区切り、例: 1624,1625-1629）")
 
     return parser.parse_args()
 
@@ -1326,6 +1394,16 @@ def main():
     # モデル設定
     print(f"使用モデル: {MODEL_NAME}")
     model = genai.GenerativeModel(MODEL_NAME)
+
+    # alien_idsのパース
+    alien_ids_list: Optional[List[int]] = None
+    if args.alien_ids:
+        try:
+            alien_ids_list = expand_id_argument(args.alien_ids)
+            print(f"解析対象エイリアンID: {alien_ids_list}")
+        except ValueError as e:
+            print(f"エラー: alien_idsの解析に失敗しました: {e}")
+            return
 
     conn = None
     try:
@@ -1394,9 +1472,16 @@ def main():
                 conn, 
                 limit=args.limit, 
                 offset=args.offset,
-                unanalyzed_only=args.unanalyzed_only
+                unanalyzed_only=args.unanalyzed_only,
+                alien_ids=alien_ids_list
             )
             print(f"{len(characters)} キャラクターを読み込みました。")
+            if alien_ids_list:
+                print(f"  指定ID: {alien_ids_list}")
+                found_ids = [char['id'] for char in characters]
+                missing_ids = set(alien_ids_list) - set(found_ids)
+                if missing_ids:
+                    print(f"  警告: 以下のIDは見つかりませんでした: {sorted(missing_ids)}")
             if not characters:
                 return
             
