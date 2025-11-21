@@ -47,49 +47,6 @@ scraping_main = combined_scraper.main
 get_db_connection = combined_scraper.get_db_connection
 
 
-def get_current_skill_texts(conn) -> Tuple[Set[str], Set[str]]:
-    """
-    スクレイピング前の現在の個性・特技テキストを取得
-    
-    Returns:
-        (個性テキストのセット, 特技テキストのセット)
-    """
-    regular_skills = set()
-    special_skills = set()
-    
-    try:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            # 個性テキストを取得
-            cur.execute("""
-                SELECT DISTINCT skill_text
-                FROM (
-                    SELECT skill_text1 as skill_text FROM alien WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-                    UNION 
-                    SELECT skill_text2 FROM alien WHERE skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-                    UNION 
-                    SELECT skill_text3 FROM alien WHERE skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-                ) all_texts
-            """)
-            for row in cur.fetchall():
-                if row['skill_text']:
-                    regular_skills.add(row['skill_text'])
-            
-            # 特技テキストを取得
-            cur.execute("""
-                SELECT DISTINCT "S_Skill_text" as skill_text
-                FROM alien
-                WHERE "S_Skill_text" IS NOT NULL AND "S_Skill_text" != 'なし'
-            """)
-            for row in cur.fetchall():
-                if row['skill_text']:
-                    special_skills.add(row['skill_text'])
-    
-    except Exception as e:
-        print(f"現在のスキルテキスト取得エラー: {e}")
-    
-    return regular_skills, special_skills
-
-
 def get_alien_names_by_ids(conn, alien_ids: List[int]) -> Dict[int, str]:
     """
     エイリアンIDから名前を取得
@@ -115,47 +72,6 @@ def get_alien_names_by_ids(conn, alien_ids: List[int]) -> Dict[int, str]:
     except Exception as e:
         print(f"エイリアン名取得エラー: {e}")
         return {}
-
-
-def get_updated_alien_ids(conn, changed_regular: Set[str], changed_special: Set[str]) -> List[int]:
-    """
-    更新されたエイリアンIDを取得（個性・特技テキストが変更されたエイリアン）
-    
-    Args:
-        conn: データベース接続
-        changed_regular: 変更・追加された個性テキストセット
-        changed_special: 変更・追加された特技テキストセット
-    
-    Returns:
-        更新されたエイリアンIDリスト
-    """
-    updated_ids = []
-    try:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            if changed_regular:
-                placeholders = ','.join(['%s'] * len(changed_regular))
-                cur.execute(f"""
-                    SELECT DISTINCT id
-                    FROM alien
-                    WHERE skill_text1 IN ({placeholders})
-                       OR skill_text2 IN ({placeholders})
-                       OR skill_text3 IN ({placeholders})
-                """, list(changed_regular) * 3)
-                updated_ids.extend([row['id'] for row in cur.fetchall()])
-            
-            if changed_special:
-                placeholders = ','.join(['%s'] * len(changed_special))
-                cur.execute(f"""
-                    SELECT DISTINCT id
-                    FROM alien
-                    WHERE "S_Skill_text" IN ({placeholders})
-                """, list(changed_special))
-                updated_ids.extend([row['id'] for row in cur.fetchall()])
-            
-            return list(set(updated_ids))
-    except Exception as e:
-        print(f"更新エイリアンID取得エラー: {e}")
-        return []
 
 
 def get_skill_texts_for_alien_ids(conn, alien_ids: List[int]) -> Tuple[Set[str], Set[str]]:
@@ -297,90 +213,6 @@ def get_analysis_results_for_skills(conn, skill_texts: Set[str], skill_type: str
         print(f"解析結果取得エラー: {e}")
     
     return results
-
-
-def detect_changed_skill_texts(
-    conn,
-    before_regular: Set[str],
-    before_special: Set[str],
-    analysis_ids: Optional[List[int]] = None
-) -> Tuple[Set[str], Set[str]]:
-    """
-    スクレイピング後の変更・追加された個性・特技テキストを検出
-    
-    Args:
-        conn: データベース接続
-        before_regular: スクレイピング前の個性テキストセット
-        before_special: スクレイピング前の特技テキストセット
-    
-    Returns:
-        (変更・追加された個性テキストのセット, 変更・追加された特技テキストのセット)
-    """
-    after_regular = set()
-    after_special = set()
-    
-    try:
-        conn = ensure_connection(conn)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            if analysis_ids:
-                id_placeholders = ','.join(['%s'] * len(analysis_ids))
-                print(f"  -> 解析対象として指定されたID: {analysis_ids}")
-                
-                cur.execute(f"""
-                    SELECT DISTINCT skill_text
-                    FROM (
-                        SELECT skill_text1 as skill_text FROM alien WHERE id IN ({id_placeholders}) AND skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-                        UNION 
-                        SELECT skill_text2 FROM alien WHERE id IN ({id_placeholders}) AND skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-                        UNION 
-                        SELECT skill_text3 FROM alien WHERE id IN ({id_placeholders}) AND skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-                    ) all_texts
-                """, analysis_ids * 3)
-                for row in cur.fetchall():
-                    if row['skill_text']:
-                        after_regular.add(row['skill_text'])
-                
-                cur.execute(f"""
-                    SELECT DISTINCT "S_Skill_text" as skill_text
-                    FROM alien
-                    WHERE id IN ({id_placeholders}) AND "S_Skill_text" IS NOT NULL AND "S_Skill_text" != 'なし'
-                """, analysis_ids)
-                for row in cur.fetchall():
-                    if row['skill_text']:
-                        after_special.add(row['skill_text'])
-            else:
-                cur.execute("""
-                    SELECT DISTINCT skill_text
-                    FROM (
-                        SELECT skill_text1 as skill_text FROM alien WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-                        UNION 
-                        SELECT skill_text2 FROM alien WHERE skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-                        UNION 
-                        SELECT skill_text3 FROM alien WHERE skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-                    ) all_texts
-                """)
-                for row in cur.fetchall():
-                    if row['skill_text']:
-                        after_regular.add(row['skill_text'])
-                
-                cur.execute("""
-                    SELECT DISTINCT "S_Skill_text" as skill_text
-                    FROM alien
-                    WHERE "S_Skill_text" IS NOT NULL AND "S_Skill_text" != 'なし'
-                """)
-                for row in cur.fetchall():
-                    if row['skill_text']:
-                        after_special.add(row['skill_text'])
-    
-    except Exception as e:
-        print(f"変更検知エラー: {e}")
-        return set(), set()
-    
-    # 変更・追加されたテキストを検出（新規追加または変更）
-    changed_regular = after_regular - before_regular
-    changed_special = after_special - before_special
-    
-    return changed_regular, changed_special
 
 
 def delete_existing_analysis(conn, skill_texts: Set[str]) -> None:
