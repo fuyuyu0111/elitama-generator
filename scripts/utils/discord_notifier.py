@@ -245,8 +245,8 @@ def send_scraping_result_detailed(
     if not webhook_url:
         return False
     
-    # 何もない場合は通知を送らない
-    if not new_alien_names and not updated_alien_names and not error_info:
+    # 何もない場合は通知を送らない（解析結果だけでも通知を送る）
+    if not new_alien_names and not updated_alien_names and not error_info and not changed_regular_skills and not changed_special_skills:
         return True
     
     try:
@@ -354,6 +354,38 @@ def send_scraping_result_detailed(
         else:
             # エラーがない場合は「なし」と表示
             content_parts.append("【エラー】\n\nなし\n")
+        
+        # 【解析結果】セクション（新規追加・更新がない場合でも解析結果があれば表示）
+        if (not new_alien_names and not updated_alien_names) and (changed_regular_skills or changed_special_skills):
+            analysis_content = "【解析結果】\n\n"
+            if changed_regular_skills:
+                analysis_content += "解析された個性\n"
+                for skill_text in sorted(list(changed_regular_skills))[:10]:  # 最大10件
+                    effects = regular_analysis_results.get(skill_text, [])
+                    if effects:
+                        effect_names = [e['effect_name'] for e in effects]
+                        analysis_content += f"- {skill_text[:50]}...\n"
+                        analysis_content += f"  効果: {', '.join(effect_names)}\n"
+                    else:
+                        analysis_content += f"- {skill_text[:50]}...\n"
+                if len(changed_regular_skills) > 10:
+                    analysis_content += f"（他{len(changed_regular_skills) - 10}件）\n"
+                analysis_content += "\n"
+            
+            if changed_special_skills:
+                analysis_content += "解析された特技\n"
+                for skill_text in sorted(list(changed_special_skills))[:10]:  # 最大10件
+                    effects = special_analysis_results.get(skill_text, [])
+                    if effects:
+                        effect_names = [e['effect_name'] for e in effects]
+                        analysis_content += f"- {skill_text[:50]}...\n"
+                        analysis_content += f"  効果: {', '.join(effect_names)}\n"
+                    else:
+                        analysis_content += f"- {skill_text[:50]}...\n"
+                if len(changed_special_skills) > 10:
+                    analysis_content += f"（他{len(changed_special_skills) - 10}件）\n"
+            
+            content_parts.append(analysis_content)
         
         # すべてのセクションを結合して送信
         final_content = "\n\n".join(content_parts)

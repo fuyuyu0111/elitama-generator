@@ -741,8 +741,8 @@ def main(
                     conn = ensure_connection(conn)
                     updated_alien_names = get_alien_names_by_ids(conn, updated_target_ids)
             
-            # 追加・更新・エラーのいずれかがある場合のみ送信
-            if new_alien_names or updated_alien_names or error_info:
+            # 追加・更新・エラー・解析結果のいずれかがある場合のみ送信
+            if new_alien_names or updated_alien_names or error_info or changed_regular_skills or changed_special_skills:
                 send_scraping_result_detailed(
                     discord_webhook_url,
                     new_alien_names=new_alien_names,
