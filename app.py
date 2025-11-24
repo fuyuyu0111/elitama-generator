@@ -548,7 +548,7 @@ def api_admin_trigger_partial_scrape():
                 str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
                 '--url', scraping_url,
                 '--scrape-ids', ids_arg,
-                '--analysis-ids', ids_arg
+                '--skip-analysis'
             ]
             if discord_webhook_url:
                 cmd.extend(['--discord-webhook', discord_webhook_url])

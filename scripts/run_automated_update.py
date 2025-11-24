@@ -489,10 +489,8 @@ def main(
     effective_analysis_ids: List[int] = sorted(set(analysis_ids or []))
     if scrape_id_list:
         print(f"指定スクレイピング対象ID: {scrape_id_list}")
-        for sid in scrape_id_list:
-            if sid not in effective_analysis_ids:
-                effective_analysis_ids.append(sid)
-        effective_analysis_ids.sort()
+    if effective_analysis_ids:
+        print(f"再解析指定ID: {effective_analysis_ids}")
     
     # データベース接続を取得（変更検知用）
     conn = None
@@ -603,57 +601,65 @@ def main(
         # スクレイピングに時間を要した場合に備え、接続を確認
         conn = ensure_connection(conn)
         
-        # スクレイピング対象IDを決定（DBに実際に保存されたIDを参照）
-        target_alien_ids = set()
+        scraped_target_ids_set: Set[int] = set()
         if skip_scraping:
-            # スクレイピングをスキップした場合、指定された解析IDのうちDBに存在するもののみを使用
-            if effective_analysis_ids:
-                existing_ids = get_existing_alien_ids(conn, effective_analysis_ids)
-                target_alien_ids = set(existing_ids)
-                if len(existing_ids) < len(effective_analysis_ids):
-                    missing_ids = set(effective_analysis_ids) - set(existing_ids)
-                    print(f"  -> 警告: 以下のIDはDBに存在しません: {sorted(missing_ids)}")
+            print("スクレイピング工程はスキップされました。")
         else:
-            # スクレイピング完了後、スクレイピング対象IDを使用
             if scrape_id_list:
-                # 部分スクレイピングの場合、実際にスクレイピングされたIDのみを使用
-                # 新規追加IDと、スクレイピング後にDBに存在する更新されたIDを含める
                 scraped_ids = set(new_alien_ids) if new_alien_ids else set()
-                # スクレイピング後にDBに存在するIDを確認（新規追加 + 更新されたID）
                 existing_from_scrape_list = get_existing_alien_ids(conn, scrape_id_list)
                 scraped_ids.update(existing_from_scrape_list)
-                target_alien_ids = scraped_ids
+                scraped_target_ids_set = scraped_ids
                 if len(scraped_ids) < len(scrape_id_list):
-                    missing_ids = set(scrape_id_list) - scraped_ids
-                    print(f"  -> 警告: 以下のIDはスクレイピングされませんでした: {sorted(missing_ids)}")
+                    missing_ids = sorted(set(scrape_id_list) - scraped_ids)
+                    print(f"  -> 警告: 以下のIDはスクレイピングされませんでした: {missing_ids}")
             elif new_alien_ids:
-                # 逆順スクレイピングまたは全体スクレイピングの場合、新規追加IDを使用（DBに保存済み）
-                target_alien_ids = set(new_alien_ids)
+                scraped_target_ids_set = set(new_alien_ids)
         
-        # 指定された解析IDがある場合は追加（スクレイピング後に追加で解析したい場合）
-        # ただし、既にtarget_alien_idsに含まれている場合はスキップ
-        if effective_analysis_ids and not skip_scraping:
+        analysis_target_ids: List[int] = []
+        if effective_analysis_ids:
             existing_ids = get_existing_alien_ids(conn, effective_analysis_ids)
-            target_alien_ids.update(existing_ids)
+            analysis_target_ids = sorted(existing_ids)
             if len(existing_ids) < len(effective_analysis_ids):
-                missing_ids = set(effective_analysis_ids) - set(existing_ids)
-                print(f"  -> 警告: 以下のIDはDBに存在しません: {sorted(missing_ids)}")
+                missing_ids = sorted(set(effective_analysis_ids) - set(existing_ids))
+                print(f"  -> 警告: 以下のIDはDBに存在しません: {missing_ids}")
         
-        target_alien_ids = sorted(target_alien_ids)
-        
-        if not target_alien_ids:
+        scraped_target_ids = sorted(scraped_target_ids_set)
+        combined_target_ids: List[int] = []
+        if not scraped_target_ids and not analysis_target_ids:
             print("解析対象となるエイリアンIDがありません。")
             changed_regular_skills = set()
             changed_special_skills = set()
         else:
-            print(f"スクレイピング対象ID: {target_alien_ids}")
-            # スクレイピング対象IDから未解析個性・特技を取得
-            changed_regular_skills, changed_special_skills = get_unanalyzed_skill_texts_for_alien_ids(conn, target_alien_ids)
-            print(f"未解析個性・特技検出: 個性テキスト {len(changed_regular_skills)}件, 特技テキスト {len(changed_special_skills)}件")
-            if changed_regular_skills:
-                print(f"未解析個性テキスト（最初の5件）: {list(changed_regular_skills)[:5]}")
-            if changed_special_skills:
-                print(f"未解析特技テキスト（最初の5件）: {list(changed_special_skills)[:5]}")
+            if scraped_target_ids:
+                print(f"スクレイピング対象ID: {scraped_target_ids}")
+                new_regular_skills, new_special_skills = get_unanalyzed_skill_texts_for_alien_ids(conn, scraped_target_ids)
+                changed_regular_skills = set(new_regular_skills)
+                changed_special_skills = set(new_special_skills)
+                print(f"未解析個性・特技検出: 個性テキスト {len(new_regular_skills)}件, 特技テキスト {len(new_special_skills)}件")
+                if new_regular_skills:
+                    print(f"未解析個性テキスト（最初の5件）: {list(new_regular_skills)[:5]}")
+                if new_special_skills:
+                    print(f"未解析特技テキスト（最初の5件）: {list(new_special_skills)[:5]}")
+            else:
+                print("スクレイピング対象ID: なし")
+                changed_regular_skills = set()
+                changed_special_skills = set()
+            
+            if analysis_target_ids:
+                print(f"再解析指定ID: {analysis_target_ids}")
+                forced_regular_skills, forced_special_skills = get_skill_texts_for_alien_ids(conn, analysis_target_ids)
+                print(f"再解析対象個性テキスト: {len(forced_regular_skills)}件, 特技テキスト: {len(forced_special_skills)}件")
+                if forced_regular_skills:
+                    print(f"再解析個性テキスト（最初の5件）: {list(forced_regular_skills)[:5]}")
+                if forced_special_skills:
+                    print(f"再解析特技テキスト（最初の5件）: {list(forced_special_skills)[:5]}")
+                changed_regular_skills.update(forced_regular_skills)
+                changed_special_skills.update(forced_special_skills)
+            else:
+                print("再解析指定ID: なし")
+            
+            combined_target_ids = sorted(set(scraped_target_ids) | set(analysis_target_ids))
         
         # ステップ3: LLM解析（未解析個性・特技がある場合のみ）
         if not skip_analysis and (changed_regular_skills or changed_special_skills):
@@ -666,7 +672,7 @@ def main(
                 try:
                     print("\n--- 3-1: 個性テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=target_alien_ids if target_alien_ids else None)
+                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=combined_target_ids if combined_target_ids else None)
                     if success:
                         print(f"個性解析完了: {message}")
                         # 解析結果を取得
@@ -689,7 +695,7 @@ def main(
                 try:
                     print("\n--- 3-2: 特技テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=target_alien_ids if target_alien_ids else None)
+                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=combined_target_ids if combined_target_ids else None)
                     if success:
                         print(f"特技解析完了: {message}")
                         # 解析結果を取得
@@ -735,8 +741,9 @@ def main(
             
             # 更新エイリアン名を取得（スクレイピング対象IDから新規追加IDを除外）
             updated_alien_names = {}
-            if target_alien_ids and new_alien_ids:
-                updated_target_ids = [aid for aid in target_alien_ids if aid not in set(new_alien_ids)]
+            if scraped_target_ids:
+                new_id_set = set(new_alien_ids or [])
+                updated_target_ids = [aid for aid in scraped_target_ids if aid not in new_id_set]
                 if updated_target_ids:
                     conn = ensure_connection(conn)
                     updated_alien_names = get_alien_names_by_ids(conn, updated_target_ids)
