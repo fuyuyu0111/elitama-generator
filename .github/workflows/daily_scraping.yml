@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Python環境をセットアップ
         uses: actions/setup-python@v4
@@ -34,27 +36,18 @@ jobs:
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           SCRAPING_BASE_URL: ${{ secrets.SCRAPING_BASE_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          AUTO_GIT_PUSH: "1"
+          AUTO_GIT_BRANCH: "main"
+          AUTO_GIT_REMOTE: "origin"
+          AUTO_GIT_USER_NAME: "github-actions[bot]"
+          AUTO_GIT_USER_EMAIL: "github-actions[bot]@users.noreply.github.com"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/run_automated_update.py \
             --url "$SCRAPING_BASE_URL" \
             --discord-webhook "$DISCORD_WEBHOOK_URL"
           # 注意: デフォルトで逆順スクレイピング（最新から）が実行されます
           # 全体スクレイピングが必要な場合は、管理モードから手動で実行してください
-      
-      - name: 変更があればコミットしてプッシュ
-        if: success()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backups/skill_list_fixed.jsonl static/images
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "chore: update scraped assets [skip ci]"
-            git push
-          fi
       
       - name: エラー時のDiscord通知
         if: failure()

@@ -29,6 +29,33 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30分
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')  # デフォルトパスワード
 
 # ============================================================================
+# ユーティリティ
+# ============================================================================
+def _strtobool(value: str) -> bool:
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def build_scraper_subprocess_env() -> dict:
+    """
+    管理モードからスクレイピングスクリプトを起動する際に必要な環境変数を整備
+    """
+    env = os.environ.copy()
+    admin_setting = os.environ.get('ADMIN_AUTO_GIT_PUSH')
+    if admin_setting is None or _strtobool(admin_setting):
+        env.setdefault('AUTO_GIT_PUSH', '1')
+    else:
+        env.setdefault('AUTO_GIT_PUSH', os.environ.get('AUTO_GIT_PUSH', '0'))
+
+    if _strtobool(env.get('AUTO_GIT_PUSH', '0')):
+        env.setdefault('AUTO_GIT_BRANCH', os.environ.get('AUTO_GIT_BRANCH', 'main'))
+        env.setdefault('AUTO_GIT_REMOTE', os.environ.get('AUTO_GIT_REMOTE', 'origin'))
+        env.setdefault('AUTO_GIT_USER_NAME', os.environ.get('AUTO_GIT_USER_NAME', 'auto-updater'))
+        env.setdefault('AUTO_GIT_USER_EMAIL', os.environ.get('AUTO_GIT_USER_EMAIL', 'auto-updater@example.com'))
+
+    return env
+
+
+# ============================================================================
 # 認証関連
 # ============================================================================
 def check_admin():
@@ -473,6 +500,7 @@ def api_admin_trigger_full_scrape():
         def run_scraping():
             """バックグラウンドでスクレイピングを実行"""
             try:
+                env = build_scraper_subprocess_env()
                 cmd = [
                     sys.executable,
                     str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
@@ -486,7 +514,8 @@ def api_admin_trigger_full_scrape():
                     cmd,
                     cwd=str(PROJECT_ROOT),
                     capture_output=True,
-                    text=True
+                    text=True,
+                    env=env
                 )
                 
                 if result.returncode != 0:
@@ -543,6 +572,7 @@ def api_admin_trigger_partial_scrape():
     
     def run_partial():
         try:
+            env = build_scraper_subprocess_env()
             cmd = [
                 sys.executable,
                 str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
@@ -556,7 +586,8 @@ def api_admin_trigger_partial_scrape():
                 cmd,
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
-                text=True
+                text=True,
+                env=env
             )
             if result.returncode != 0:
                 app.logger.error(f"Partial scrape failed: {result.stderr}")
@@ -606,6 +637,7 @@ def api_admin_trigger_analysis_only():
     
     def run_analysis_only():
         try:
+            env = build_scraper_subprocess_env()
             cmd = [
                 sys.executable,
                 str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
@@ -620,7 +652,8 @@ def api_admin_trigger_analysis_only():
                 cmd,
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
-                text=True
+                text=True,
+                env=env
             )
             if result.returncode != 0:
                 app.logger.error(f"Analysis-only run failed: {result.stderr}")

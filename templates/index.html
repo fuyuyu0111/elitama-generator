@@ -4968,11 +4968,7 @@
      * フィルターUIの状態（「すべて」ボタンの選択状態や「絞り込み」ボタンの色）を更新する
      */
     function updateFilterUIState() {
-        let isAnyFilterActive = false;
-        
-        // 効果フィルターが選択されているかチェック
-        const effectButtons = document.querySelectorAll('.effect-button.selected');
-        const hasEffectFilter = effectButtons.length > 0;
+        let hasRegularFilterActive = false;
         
         // 名前検索欄が入力されているかチェック
         const nameSearchInput = document.getElementById('name-search-input');
@@ -4989,18 +4985,16 @@
             
             allBtn.classList.toggle('selected', isAllSelected);
             if (!isAllSelected && optionButtons.length > 0) {
-                isAnyFilterActive = true;
+                hasRegularFilterActive = true;
             }
         });
         
         // 名前検索欄が入力されていれば絞り込み状態にする
         if (hasNameSearch) {
-            isAnyFilterActive = true;
+            hasRegularFilterActive = true;
         }
         
-        // 効果フィルターが選択されている場合は、絞り込みボタンにfilteredクラスを付けない
-        // （効果フィルターは別のメニューなので）
-        filterButton.classList.toggle('filtered', isAnyFilterActive && !hasEffectFilter);
+        filterButton.classList.toggle('filtered', hasRegularFilterActive);
     }
 
     // （注意）下記のドラッグ＆ドロップ用関数はこのファイル上部で実装済みです。

@@ -7,6 +7,7 @@ import os
 import json
 import sys
 import argparse
+import subprocess
 from pathlib import Path
 from typing import Tuple, List, Set, Dict, Optional
 import psycopg2
@@ -28,6 +29,86 @@ except Exception:
 
 # 環境変数読み込み
 load_dotenv(dotenv_path=PROJECT_ROOT / '.env')
+
+AUTO_GIT_DEFAULT_TARGETS = [
+    'static/images',
+    'backups/skill_list_fixed.jsonl'
+]
+
+
+def _strtobool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def auto_push_updated_assets_if_needed():
+    """
+    画像などの生成物を自動でコミット＆プッシュ（環境変数で有効化）
+    """
+    if not _strtobool(os.environ.get('AUTO_GIT_PUSH')):
+        return
+
+    repo_path = PROJECT_ROOT
+    if not (repo_path / '.git').exists():
+        print("[auto-push] Git リポジトリが見つからないためスキップします。")
+        return
+
+    target_paths_env = os.environ.get('AUTO_GIT_TARGETS')
+    if target_paths_env:
+        target_paths = [path.strip() for path in target_paths_env.split(',') if path.strip()]
+    else:
+        target_paths = AUTO_GIT_DEFAULT_TARGETS
+
+    existing_targets = [
+        rel_path for rel_path in target_paths
+        if (repo_path / rel_path).exists()
+    ]
+
+    if not existing_targets:
+        print("[auto-push] コミット対象のファイルが存在しないためスキップします。")
+        return
+
+    def run_git(args: List[str], check: bool = True):
+        result = subprocess.run(
+            ['git'] + args,
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True
+        )
+        if check and result.returncode != 0:
+            stderr = result.stderr.strip()
+            stdout = result.stdout.strip()
+            message = stderr or stdout or f"git {' '.join(args)} failed"
+            raise RuntimeError(message)
+        return result
+
+    user_name = os.environ.get('AUTO_GIT_USER_NAME', 'auto-updater')
+    user_email = os.environ.get('AUTO_GIT_USER_EMAIL', 'auto-updater@example.com')
+    remote_name = os.environ.get('AUTO_GIT_REMOTE', 'origin')
+    branch_name = os.environ.get('AUTO_GIT_BRANCH', 'main')
+    commit_message = os.environ.get('AUTO_GIT_COMMIT_MESSAGE', 'chore: sync scraped assets')
+
+    try:
+        run_git(['config', 'user.name', user_name])
+        run_git(['config', 'user.email', user_email])
+
+        for rel_path in existing_targets:
+            run_git(['add', '-f', rel_path])
+
+        diff_check = subprocess.run(
+            ['git', 'diff', '--cached', '--quiet'],
+            cwd=str(repo_path)
+        )
+        if diff_check.returncode == 0:
+            print("[auto-push] コミット対象の変更はありませんでした。")
+            return
+
+        run_git(['commit', '-m', commit_message])
+        run_git(['push', remote_name, f'HEAD:{branch_name}'])
+        print(f"[auto-push] {branch_name} へ変更をプッシュしました。")
+    except Exception as git_error:
+        print(f"[auto-push] プッシュに失敗しました: {git_error}")
 
 # 必要なモジュールをインポート
 scraping_dir = PROJECT_ROOT / 'scripts' / 'scraping'
@@ -287,8 +368,6 @@ def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = 
         return True, f"変更・追加された{skill_type_name}テキストがないため、解析をスキップしました。"
     
     try:
-        import subprocess
-        
         # 変更・追加されたテキストの既存解析データを削除（再解析のため）
         print(f"  変更・追加されたテキストの既存解析データを削除中...")
         delete_existing_analysis(conn, skill_texts)
@@ -774,6 +853,9 @@ def main(
             print(f"エラー数: {len(errors)}件")
             for error in errors:
                 print(f"  - {error}")
+
+        if not errors:
+            auto_push_updated_assets_if_needed()
         
         return 0 if not errors else 1
     
