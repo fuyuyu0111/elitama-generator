@@ -491,6 +491,15 @@ def fetch_s_skill_texts_from_db(conn, limit: Optional[int] = None, offset: int =
     if unanalyzed_only:
         # 未解析の特技テキストのみを取得
         query = """
+        SELECT DISTINCT "S_Skill_text" as skill_text
+        FROM {alien_table}
+        WHERE "S_Skill_text" IS NOT NULL 
+          AND "S_Skill_text" != 'なし'
+          AND NOT EXISTS (
+              SELECT 1 FROM {verified_table} d 
+              WHERE d.skill_text = {alien_table}."S_Skill_text"
+          )
+        ORDER BY skill_text
         """.format(alien_table=SOURCE_TABLE_ALIEN, verified_table=DEST_TABLE)
     else:
         # 全ての特技テキストを取得
