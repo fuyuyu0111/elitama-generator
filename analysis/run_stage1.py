@@ -18,7 +18,8 @@ import argparse
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # --- プロジェクトルート設定 ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -42,10 +43,9 @@ BACKUP_DIR = PROJECT_ROOT / "backups" / "stage1"
 
 # --- LLMとレート制限の設定 ---
 MODEL_NAME = "gemini-2.5-flash"
-# TPM: 1,000,000 tokens/分、RPM: 10 req/分の制限を考慮
-# テスト結果: 約7,052 tokens/リクエスト → RPM制限がボトルネック（6.00秒間隔必要）
-# 安全マージン込みで6.5秒間隔に設定（実際のRPM: 9.2 req/分、TPM: 約65,000 tokens/分）
-ACTUAL_INTERVAL = 6.5  # 秒
+# TPM: 1,000,000 tokens/分、RPM: 5 req/分の制限（Gemini 2.5 Flash Free Tier）を考慮
+# 安全マージン込みで15.0秒間隔に設定（実際のRPM: 4.0 req/分）
+ACTUAL_INTERVAL = 15.0  # 秒
 
 print(f"レート制限設定:")
 print(f"  モデル: {MODEL_NAME}")
@@ -55,6 +55,7 @@ print(f"  レート制限: TPM 1,000,000 tokens/分、RPM 10 req/分")
 
 # --- キャッシュ ---
 _CORRECT_NAMES_CACHE = None
+_PROMPT_CACHE = {}
 
 # --- 効果名カテゴリマッピング（共通定義） ---
 # このマッピングは auto_complete_classification と format_effect_names_for_prompt の両方で使用されます
@@ -81,6 +82,7 @@ PERSONALITY_EFFECT_CATEGORIES = {
     "毒ダメージ軽減": ("BUFF", "BUFF_REDUCE"),
     "毒効果時間短縮": ("BUFF", "BUFF_REDUCE"),
     "気絶時間短縮": ("BUFF", "BUFF_REDUCE"),
+    "気絶確率軽減": ("BUFF", "BUFF_REDUCE"),
     "特技被ダメージ軽減": ("BUFF", "BUFF_REDUCE"),
     "被クリティカルダメージ軽減": ("BUFF", "BUFF_REDUCE"),
     "被ダメージ軽減": ("BUFF", "BUFF_REDUCE"),
@@ -178,20 +180,17 @@ PERSONALITY_EFFECT_CATEGORIES = {
 }
 
 # --- Gemini APIのセットアップ ---
-genai.configure(api_key=GEMINI_API_KEY)
-generation_config = {
-    "temperature": 0.0,
-    "response_mime_type": "application/json",
-}
-safety_settings = [
-    {"category": c, "threshold": "BLOCK_NONE"}
-    for c in [
-        "HARM_CATEGORY_HARASSMENT",
-        "HARM_CATEGORY_HATE_SPEECH",
-        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "HARM_CATEGORY_DANGEROUS_CONTENT",
+# --- Gemini 2.0 SDK Configuration ---
+GEN_CONFIG = types.GenerateContentConfig(
+    temperature=0.0,
+    response_mime_type="application/json",
+    safety_settings=[
+        types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
     ]
-]
+)
 
 
 # --- DB接続 ---
@@ -216,10 +215,18 @@ def get_db_connection():
 
 # --- ファイル読み込み ---
 def load_prompt_template(path: Path) -> Optional[str]:
-    """プロンプトテンプレートファイルを読み込む"""
+    """プロンプトテンプレートファイルを読み込む（キャッシュ対応）"""
+    global _PROMPT_CACHE
+    path_str = str(path)
+    
+    if path_str in _PROMPT_CACHE:
+        return _PROMPT_CACHE[path_str]
+        
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
+            content = f.read()
+            _PROMPT_CACHE[path_str] = content
+            return content
     except FileNotFoundError:
         print(f"エラー: プロンプトファイルが見つかりません: {path}")
         return None
@@ -279,29 +286,26 @@ def fetch_characters_with_skills_from_db(conn, limit: Optional[int] = None, offs
             id_placeholders = ','.join(['%s'] * len(alien_ids))
             query = f"""
             WITH analyzed_texts AS (
-                SELECT DISTINCT skill_text FROM {DEST_TABLE}
+            SELECT DISTINCT skill_text FROM {DEST_TABLE}
             )
             SELECT a.id, a.skill_text1, a.skill_text2, a.skill_text3
             FROM {SOURCE_TABLE_ALIEN} a
             WHERE a.id IN ({id_placeholders})
               AND (
-                  (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND a.skill_text1 NOT IN (SELECT skill_text FROM analyzed_texts))
-                  OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND a.skill_text2 NOT IN (SELECT skill_text FROM analyzed_texts))
-                  OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND a.skill_text3 NOT IN (SELECT skill_text FROM analyzed_texts))
+                  (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND NOT EXISTS (SELECT 1 FROM {DEST_TABLE} d WHERE d.skill_text = a.skill_text1))
+                  OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND NOT EXISTS (SELECT 1 FROM {DEST_TABLE} d WHERE d.skill_text = a.skill_text2))
+                  OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND NOT EXISTS (SELECT 1 FROM {DEST_TABLE} d WHERE d.skill_text = a.skill_text3))
               )
             ORDER BY a.id
             """
         else:
             query = f"""
-            WITH analyzed_texts AS (
-                SELECT DISTINCT skill_text FROM {DEST_TABLE}
-            )
             SELECT a.id, a.skill_text1, a.skill_text2, a.skill_text3
             FROM {SOURCE_TABLE_ALIEN} a
             WHERE (
-                (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND a.skill_text1 NOT IN (SELECT skill_text FROM analyzed_texts))
-                OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND a.skill_text2 NOT IN (SELECT skill_text FROM analyzed_texts))
-                OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND a.skill_text3 NOT IN (SELECT skill_text FROM analyzed_texts))
+                (a.skill_text1 IS NOT NULL AND a.skill_text1 != 'なし' AND NOT EXISTS (SELECT 1 FROM {DEST_TABLE} d WHERE d.skill_text = a.skill_text1))
+                OR (a.skill_text2 IS NOT NULL AND a.skill_text2 != 'なし' AND NOT EXISTS (SELECT 1 FROM {DEST_TABLE} d WHERE d.skill_text = a.skill_text2))
+                OR (a.skill_text3 IS NOT NULL AND a.skill_text3 != 'なし' AND NOT EXISTS (SELECT 1 FROM {DEST_TABLE} d WHERE d.skill_text = a.skill_text3))
             )
             ORDER BY a.id
             """
@@ -319,15 +323,15 @@ def fetch_characters_with_skills_from_db(conn, limit: Optional[int] = None, offs
                        OR skill_text3 IS NOT NULL AND skill_text3 != 'なし')
                 ORDER BY id
                 """
-        else:
-            query = f"""
-            SELECT id, skill_text1, skill_text2, skill_text3
-            FROM {SOURCE_TABLE_ALIEN}
-            WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-               OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-               OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-            ORDER BY id
-            """
+            else:
+                query = f"""
+                SELECT id, skill_text1, skill_text2, skill_text3
+                FROM {SOURCE_TABLE_ALIEN}
+                WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+                   OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
+                   OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
+                ORDER BY id
+                """
     
     params = []
     if alien_ids:
@@ -487,19 +491,6 @@ def fetch_s_skill_texts_from_db(conn, limit: Optional[int] = None, offset: int =
     if unanalyzed_only:
         # 未解析の特技テキストのみを取得
         query = """
-        WITH unique_texts AS (
-            SELECT DISTINCT "S_Skill_text" as skill_text
-            FROM {alien_table}
-            WHERE "S_Skill_text" IS NOT NULL AND "S_Skill_text" != 'なし'
-        ),
-        analyzed_texts AS (
-            SELECT DISTINCT skill_text FROM {verified_table}
-        )
-        SELECT ut.skill_text
-        FROM unique_texts ut
-        LEFT JOIN analyzed_texts at ON ut.skill_text = at.skill_text
-        WHERE at.skill_text IS NULL
-        ORDER BY ut.skill_text
         """.format(alien_table=SOURCE_TABLE_ALIEN, verified_table=DEST_TABLE)
     else:
         # 全ての特技テキストを取得
@@ -530,52 +521,68 @@ def fetch_s_skill_texts_from_db(conn, limit: Optional[int] = None, offset: int =
 
 
 # --- LLM API呼び出し ---
-def call_gemini_sync(model: genai.GenerativeModel, prompt: str, count_tokens: bool = False) -> Tuple[Optional[str], Optional[int], Optional[float]]:
+def call_gemini_sync(client: genai.Client, model_name: str, prompt: str, count_tokens: bool = False) -> Tuple[Optional[str], Optional[int], Optional[float]]:
     """
-    Gemini APIを同期で呼び出す
+    Gemini APIを同期で呼び出す (google-genai SDK)
     
     Returns:
         (response_text, token_count, retry_after_seconds)
-        retry_after_seconds: 429エラーの場合、再試行可能になるまでの秒数（Noneの場合は即時リトライ可能）
     """
-    try:
-        response = model.generate_content(prompt)
-        if not response or not hasattr(response, "text") or not response.text:
-            print("\n    警告: Gemini APIからの応答が空です。レート制限の可能性があります。")
-            return None, None, None
-        
-        token_count = None
-        if count_tokens:
-            # 入力トークン数を取得
-            try:
-                usage_metadata = response.usage_metadata
-                if usage_metadata:
-                    token_count = usage_metadata.prompt_token_count
-            except Exception:
-                pass
-        
-        return response.text, token_count, None
-    except Exception as e:
-        # 429エラーの場合はretry_delayを取得
-        retry_after = None
-        error_str = str(e)
-        error_class = e.__class__.__name__
-        
-        if "429" in error_str or "ResourceExhausted" in error_class:
-            # エラーメッセージからretry_delayを抽出
-            # "Please retry in X.XXXXXs" の形式を探す
-            match = re.search(r'Please retry in ([\d.]+)s', error_str)
-            if match:
-                retry_after = float(match.group(1))
-                print(f"\n    レート制限エラー: {retry_after:.1f}秒後にリトライ可能")
-            else:
-                # デフォルトで60秒待機
+    max_retries = 3
+    base_delay = 2.0
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=GEN_CONFIG
+            )
+            if not response or not hasattr(response, "text") or not response.text:
+                print("\n    警告: Gemini APIからの応答が空です。レート制限の可能性があります。")
+                return None, None, None
+            
+            token_count = None
+            if count_tokens:
+                # 入力トークン数を取得
+                try:
+                    usage_metadata = response.usage_metadata
+                    if usage_metadata:
+                        token_count = usage_metadata.prompt_token_count
+                except Exception:
+                    pass
+            
+            return response.text, token_count, None
+
+        except Exception as e:
+            error_str = str(e)
+            error_class = e.__class__.__name__
+            
+            # 429エラー (レート制限)
+            if "429" in error_str or "ResourceExhausted" in error_class:
                 retry_after = 60.0
-                print(f"\n    レート制限エラー: 60秒後にリトライ可能（retry_delayの抽出に失敗）")
-        else:
-            print(f"\n    Gemini API呼び出しエラー: {error_class}: {e}")
-        
-        return None, None, retry_after
+                match = re.search(r'Please retry in ([\d.]+)s', error_str)
+                if match:
+                    retry_after = float(match.group(1))
+                    print(f"\n    レート制限エラー: {retry_after:.1f}秒後にリトライ可能")
+                else:
+                    print(f"\n    レート制限エラー: 60秒後にリトライ可能（retry_delayの抽出に失敗）")
+                return None, None, retry_after
+
+            # 503エラー (一時的なサーバー過負荷) などリトライ可能なエラー
+            if "503" in error_str or "ServiceUnavailable" in error_class or "InternalServerError" in error_class:
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    print(f"\n    サーバーエラー ({error_class})。{delay}秒後にリトライします... ({attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                else:
+                    print(f"\n    サーバーエラーが続いたため諦めます: {error_str}")
+            else:
+                print(f"\n    Gemini API呼び出しエラー: {error_class}: {e}")
+            
+            # リトライ不能または回数切れ
+            return None, None, None
 
 
 # --- 応答パース ---
@@ -1004,7 +1011,8 @@ def display_and_check_llm_output(skill_text: str, effects_list: List[Dict]) -> L
 # --- 並列処理 ---
 async def process_skill_texts_parallel(
     skill_texts: List[str],
-    model: genai.GenerativeModel,
+    client: genai.Client,
+    model_name: str,
     interval: float,
     conn,
     count_tokens: bool = False,
@@ -1042,7 +1050,7 @@ async def process_skill_texts_parallel(
 
         # 同期API呼び出しを非同期タスクとしてスケジュール
         print(f"[{index + 1}/{total_skills}] 個性テキスト「{skill_text[:30]}...」を送信...")
-        task = loop.run_in_executor(None, call_gemini_sync, model, prompt, count_tokens)
+        task = loop.run_in_executor(None, call_gemini_sync, client, model_name, prompt, count_tokens)
         tasks.append((skill_text, task))
 
     print(f"\n全 {len(tasks)} 件のリクエスト送信完了。回答を待機中...\n")
@@ -1110,7 +1118,7 @@ async def process_skill_texts_parallel(
                 
                 prompt = build_prompt_for_skill(retry_skill, is_special_skill=is_special_skill)
                 if prompt:
-                    task = loop.run_in_executor(None, call_gemini_sync, model, prompt, count_tokens)
+                    task = loop.run_in_executor(None, call_gemini_sync, client, model_name, prompt, count_tokens)
                     retry_tasks.append((retry_skill, task))
             
             # リトライ結果を収集
@@ -1147,7 +1155,8 @@ async def process_skill_texts_parallel(
 # --- 逐次処理（2重チェック付き） ---
 def process_skill_texts_sequential_with_check(
     skill_texts: List[str],
-    model: genai.GenerativeModel,
+    client: genai.Client,
+    model_name: str,
     interval: float,
     conn,
     count_tokens: bool = False,
@@ -1178,7 +1187,7 @@ def process_skill_texts_sequential_with_check(
         
         # API呼び出し
         try:
-            result = call_gemini_sync(model, prompt, count_tokens)
+            result = call_gemini_sync(client, model_name, prompt, count_tokens)
             raw_response = result[0]
             token_count = result[1]
             retry_after = result[2] if len(result) > 2 else None
@@ -1188,7 +1197,7 @@ def process_skill_texts_sequential_with_check(
                 print(f"  レート制限: {retry_after:.1f}秒待機...")
                 time.sleep(retry_after + interval)
                 # リトライ
-                result = call_gemini_sync(model, prompt, count_tokens)
+                result = call_gemini_sync(client, model_name, prompt, count_tokens)
                 raw_response = result[0]
                 token_count = result[1]
                 
@@ -1221,6 +1230,7 @@ def process_skill_texts_sequential_with_check(
 
 
 # --- DB挿入 ---
+# --- DB挿入 ---
 def insert_effects(conn, rows: List[Tuple], truncate: bool = False):
     """skill_text_verified_effects テーブルにバッチ挿入"""
     if not rows:
@@ -1233,59 +1243,122 @@ def insert_effects(conn, rows: List[Tuple], truncate: bool = False):
                 print(f"{DEST_TABLE} を TRUNCATE します...")
                 cur.execute(f"TRUNCATE TABLE {DEST_TABLE} RESTART IDENTITY")
 
-            # 既存データをチェックしてUPDATE/INSERTを分ける
-            # UNIQUE INDEXが関数式のため、ON CONFLICTは使えない
-            inserted_count = 0
-            updated_count = 0
+            # 一括挿入・更新用にデータを準備
+            to_insert = []
+            to_update = []
             
+            # DBに存在するデータを一括確認するための検索キーを作成
+            # (skill_text, effect_name, condition_target) の組み合わせで確認
+            search_keys = []
+            for row in rows:
+                skill_text, effect_name, effect_type, category, condition_target = row[:5]
+                search_keys.append((skill_text, effect_name, condition_target if condition_target else ''))
+
+            # 既存のIDを一括取得
+            # 検索キーが多い場合は一時テーブルを使う手もあるが、ここでは IN 句で対応
+            # プレースホルダー数が多すぎるとエラーになる可能性があるため、一定数ごとに分割して処理することも検討
+            # 今回は数千件程度なら psycopg2 の execute_values を使うか、単純なIN句構築で対応
+            existing_map = {}
+            
+            if not truncate and search_keys:
+                # 複合キーでの検索はSQL標準では (a,b,c) IN ((...),(...)) が使える
+                # psycopg2でこれを構築するのは少し手間だが、execute_valuesを利用して一時テーブルとのJOINなどを模倣可能
+                # ここではシンプルに、全ての挿入候補に対して既存レコードをチェックする
+                # 件数が多い場合はパフォーマンス注意だが、1件ずつのSELECTよりはマシ
+                pass
+                
+                # 既存データ一括取得の簡略化:
+                # 完全に一致するものを探すのが難しい（NULL扱いなど）ため、
+                # ここでは正確性を期して、execute_values で「調べたいキーのリスト」をVALUESとして送り、
+                # それとテーブルをJOINしてIDを取得するアプローチをとる
+                
+                check_sql = f"""
+                WITH params(skill_text, effect_name, condition_target_str) AS (VALUES %s)
+                SELECT d.id, d.skill_text, d.effect_name, COALESCE(d.condition_target, '')
+                FROM {DEST_TABLE} d
+                JOIN params p ON d.skill_text = p.skill_text 
+                             AND d.effect_name = p.effect_name 
+                             AND COALESCE(d.condition_target, '') = p.condition_target_str
+                """
+                
+                # condition_target が None の場合は空文字として扱う（COALESCE対応）
+                check_values = [(r[0], r[1], r[4] if r[4] else '') for r in rows]
+                
+                cur.execute("SELECT 1") # ダミークエリでカーソル初期化（不要かも）
+                
+                # execute_values を使って問い合わせ
+                # fetchallで結果を取得し、マップを作成
+                query_result = []
+                # execute_values は通常INSERT用だが、ここではVALUES句生成に使用
+                # fetch=True は psycopg2 2.8+ で使用可能
+                execute_values(cur, check_sql, check_values, fetch=True)
+                results = cur.fetchall()
+                
+                for res in results:
+                    # key: (skill_text, effect_name, condition_target_str) -> id
+                    existing_map[(res[1], res[2], res[3])] = res[0]
+
+            # 振り分け
             for row in rows:
                 skill_text, effect_name, effect_type, category, condition_target, \
                     requires_awakening, target, has_requirement, requirement_details, requirement_count = row[:10]
                 
-                # 既存データをチェック
-                check_sql = f"""
-                SELECT id FROM {DEST_TABLE}
-                WHERE skill_text = %s 
-                  AND effect_name = %s 
-                  AND COALESCE(condition_target, '') = COALESCE(%s, '')
-                """
-                cur.execute(check_sql, (skill_text, effect_name, condition_target))
-                existing = cur.fetchone()
+                key = (skill_text, effect_name, condition_target if condition_target else '')
                 
-                if existing:
-                    # UPDATE
-                    update_sql = f"""
-                    UPDATE {DEST_TABLE} SET
-                        effect_type = %s,
-                        category = %s,
-                        requires_awakening = %s,
-                        target = %s,
-                        has_requirement = %s,
-                        requirement_details = %s,
-                        requirement_count = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                    """
-                    cur.execute(update_sql, (
+                if key in existing_map:
+                    # UPDATE用データ
+                    # (effect_type, category, ..., id)
+                    existing_id = existing_map[key]
+                    to_update.append((
                         effect_type, category, requires_awakening, target,
                         has_requirement, requirement_details, requirement_count,
-                        existing[0]
+                        datetime.now(),
+                        existing_id
                     ))
-                    updated_count += 1
                 else:
-                    # INSERT
-                    insert_sql = f"""
-                    INSERT INTO {DEST_TABLE} (
+                    # INSERT用データ
+                    to_insert.append((
                         skill_text, effect_name, effect_type, category, condition_target,
                         requires_awakening, target, has_requirement, requirement_details, requirement_count,
-                        updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                    """
-                    cur.execute(insert_sql, (
-                        skill_text, effect_name, effect_type, category, condition_target,
-                        requires_awakening, target, has_requirement, requirement_details, requirement_count
+                        datetime.now()
                     ))
-                    inserted_count += 1
+            
+            # 一括UPDATE
+            if to_update:
+                update_sql = f"""
+                UPDATE {DEST_TABLE} SET
+                    effect_type = data.effect_type,
+                    category = data.category,
+                    requires_awakening = data.requires_awakening,
+                    target = data.target,
+                    has_requirement = data.has_requirement,
+                    requirement_details = data.requirement_details,
+                    requirement_count = data.requirement_count,
+                    updated_at = data.updated_at
+                FROM (VALUES %s) AS data(
+                    effect_type, category, requires_awakening, target, has_requirement, 
+                    requirement_details, requirement_count, updated_at, id
+                )
+                WHERE {DEST_TABLE}.id = data.id
+                """
+                execute_values(cur, update_sql, to_update)
+                updated_count = len(to_update)
+            else:
+                updated_count = 0
+
+            # 一括INSERT
+            if to_insert:
+                insert_sql = f"""
+                INSERT INTO {DEST_TABLE} (
+                    skill_text, effect_name, effect_type, category, condition_target,
+                    requires_awakening, target, has_requirement, requirement_details, requirement_count,
+                    updated_at
+                ) VALUES %s
+                """
+                execute_values(cur, insert_sql, to_insert)
+                inserted_count = len(to_insert)
+            else:
+                inserted_count = 0
             
             conn.commit()
             print(f"{DEST_TABLE} に {inserted_count} 件を挿入、{updated_count} 件を更新しました（合計 {len(rows)} 件）。")
@@ -1389,11 +1462,10 @@ def main():
         api_key = os.getenv("GEMINI_API_KEY_2") or os.getenv("GEMINI_API_KEY_1")
         if not api_key:
             raise RuntimeError("APIキーが環境変数 GEMINI_API_KEY_2 または GEMINI_API_KEY_1 に設定されていません。")
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 
     # モデル設定
     print(f"使用モデル: {MODEL_NAME}")
-    model = genai.GenerativeModel(MODEL_NAME)
 
     # alien_idsのパース
     alien_ids_list: Optional[List[int]] = None
@@ -1427,7 +1499,7 @@ def main():
             if args.sequential_check:
                 # 逐次処理で2重チェック
                 all_rows, failed_skills_initial, total_tokens = process_skill_texts_sequential_with_check(
-                    skill_texts, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                    skill_texts, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
                 )
                 print(f"\n逐次解析完了: {len(all_rows)} 件の効果を抽出しました。")
                 print(f"失敗: {len(failed_skills_initial)} 件")
@@ -1440,7 +1512,7 @@ def main():
             else:
                 # 並列処理（既存の処理）
                 all_rows, failed_skills_initial, total_tokens = asyncio.run(process_skill_texts_parallel(
-                    skill_texts, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                    skill_texts, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
                 ))
                 print(f"\n初回解析完了: {len(all_rows)} 件の効果を抽出しました。")
                 print(f"初回失敗: {len(failed_skills_initial)} 件")
@@ -1453,7 +1525,7 @@ def main():
                 if failed_skills_initial:
                     print(f"\n--- リトライ解析 ({len(failed_skills_initial)} 件) ---")
                     retry_rows, failed_skills_final, _ = asyncio.run(process_skill_texts_parallel(
-                        failed_skills_initial, model, ACTUAL_INTERVAL, conn, is_special_skill=is_special
+                        failed_skills_initial, client, MODEL_NAME, ACTUAL_INTERVAL, conn, is_special_skill=is_special
                     ))
                     print(f"リトライ完了: {len(retry_rows)} 件の効果を追加抽出。")
                     print(f"最終失敗: {len(failed_skills_final)} 件")
@@ -1511,7 +1583,7 @@ def main():
                 if args.sequential_check:
                     # 逐次処理で2重チェック
                     char_rows, char_failed, char_tokens = process_skill_texts_sequential_with_check(
-                        skill_texts_for_char, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                        skill_texts_for_char, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
                     )
                     final_all_rows.extend(char_rows)
                     failed_skills_final.extend(char_failed)
@@ -1520,7 +1592,7 @@ def main():
                 else:
                     # 並列処理
                     char_rows, char_failed, char_tokens = asyncio.run(process_skill_texts_parallel(
-                        skill_texts_for_char, model, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                        skill_texts_for_char, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
                     ))
                     final_all_rows.extend(char_rows)
                     failed_skills_final.extend(char_failed)
@@ -1531,7 +1603,7 @@ def main():
                     if char_failed:
                         print(f"  リトライ: {len(char_failed)}件")
                         retry_rows, retry_failed, _ = asyncio.run(process_skill_texts_parallel(
-                            char_failed, model, ACTUAL_INTERVAL, conn, is_special_skill=is_special
+                            char_failed, client, MODEL_NAME, ACTUAL_INTERVAL, conn, is_special_skill=is_special
                         ))
                         final_all_rows.extend(retry_rows)
                         failed_skills_final = [s for s in failed_skills_final if s not in retry_failed]

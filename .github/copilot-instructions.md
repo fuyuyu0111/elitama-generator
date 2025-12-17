@@ -94,11 +94,13 @@ alien_egg/
 ### 設計思想
 
 1. **シンプルさ最優先**: ライブラリ不使用、基本的なDOM操作のみ
+2. **コード量の最小化**: 可能な限り1ファイル完結・関数の粒度を揃え、複雑な抽象化や汎用フレームワークを避ける（テンプレートも極力HTML/JS素のまま）
 2. **操作の簡潔さ**: 画面遷移なし、1画面に情報集約
 3. **データ一括読み込み**: `@lru_cache`で初回に全データをメモリにキャッシュ
 4. **型安全**: `parseInt()`でID比較を統一
 5. **解析の効率化**: キャラごと（1380個性）ではなく、個性テキストごと（約870種）に解析し、不整合を防止する
 6. **モバイル対応**: モバイルブラウザでも快適に使用できるよう、アドレスバーを考慮したスクロール対応を実装
+7. **Git自動反映**: スクレイピング後の資産（`static/images`, `backups/skill_list_fixed.jsonl`）は成功時に自動コミット＆プッシュし、デプロイ環境とGitHubを即時同期させる
 
 -----
 
@@ -282,6 +284,12 @@ const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
 - **UIの高さ**: `100vh`を維持し、余分な高さは追加しない（画面の縦幅に合わせる）
 - **実装**: CSSのメディアクエリ（`@media (max-width: 768px)`）でモバイル専用のスタイルを適用
 
+### 4.6 UI挙動メモ（感覚的仕様の共有）
+
+- `updateFilterUIState()`は「属性/所属などの通常フィルター」と「名前検索欄」の状態だけで「絞り込み」ボタンの赤ハイライトを制御し、バフデバフ絞り込みのハイライトは`effectFilterButton`側で独立して判定する（赤が消えないよう分離）
+- 編成スロットの◯/✗判定は`checkPartyRealtime()`→`checkCondition()`が`ALIEN_SKILL_DATA`と現在の`parties`配列を突き合わせて行い、管理モード中も同じ判定結果を使ってUI表示を統一
+- 画像は`createAlienImageElement()`で既存カードの`img`を探してクローンし、都度の再ロードを避けてメモリ上の同一要素を使い回す
+
 -----
 
 ## 5. 管理モード
@@ -434,162 +442,45 @@ const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
 
 -----
 
-## 7. 今後の予定
+## 7. 運用・デプロイ仕様（すべて実装済み）
 
-### 実環境テストでの調整
+### 7.1 自動スクレイピング（GitHub Actions）
 
-- 実環境での動作確認と不具合修正
-- パフォーマンス最適化
-- ユーザーフィードバックに基づくUI/UX改善
+- スケジュール: 毎日00:02（JST）に `/.github/workflows/daily_scraping.yml` が起動
+- モード: 逆順（デフォルト）、`--full-scrape`、`--scrape-ids`、`--skip-scraping --analysis-ids`
+- 処理フロー: alienテーブル更新 → 画像ダウンロード → 未解析テキスト抽出 → 必要時のみLLM解析 → Discord通知
+- 解析対象ID: 逆順/全体=`new_alien_ids`、部分=`scrape_ids`（解析スキップ）、解析専用=`analysis_ids`
+- 差分解析: `get_unanalyzed_skill_texts_for_alien_ids()`で既存解析との差分だけをLLMに投げる
+- GitHub Actionsでは `AUTO_GIT_PUSH=1` 等を渡しており、処理完了時に `origin/main` へ自動プッシュする
 
-### 自動スクレイピング ✅ **実装完了**
+### 7.2 管理モードでの手動スクレイピング・解析
 
-- **スケジュール**: 毎日00:02（JST）に自動実行（GitHub Actions）
-- **スクレイピングモード**:
-  - **デフォルト（逆順スクレイピング）**: 最新のエイリアンから逆順にチェックし、新キャラのみスクレイピング（公式Wikiへの負荷を大幅に削減）
-  - **全体スクレイピング**: `--full-scrape`フラグで全体スクレイピングを実行（上方修正などのステータス変更を検出する場合に使用）
-  - **部分スクレイピング**: `--scrape-ids <ID列>` で指定IDのエイリアンのみスクレイピング（上方修正などのステータス変更検出用）
-- **解析スキーム**: **スクレイピング完了後、alienテーブルと画像追加を完了し、DB内の「スクレイピングで保存したID」を参照して、そのエイリアンに未解析個性・特技が含まれる場合に解析＆DB登録**
-- **解析対象**: スクレイピング対象ID（`new_alien_ids`または`scrape_ids`）から未解析個性・特技テキストを取得し、解析（既存解析データを削除してから再解析）
-- **使用モデル**: Gemini 2.5 Flash（`analysis/run_stage1.py`で設定）
-- **解析バージョン**: 新バージョン（`【カテゴリ】`形式）に対応済み
-- **解析方式**: 個性解析は1キャラ（3個性）ずつ処理（`fetch_characters_with_skills_from_db()`を使用、`--alien-ids`オプションで特定IDのみ解析）
-- **画像取得**: スクレイピング時に画像が存在しない場合のみダウンロード（`static/images`に保存）
-- **実装ファイル**:
-  - `scripts/run_automated_update.py`: 自動更新統合スクリプト（スクレイピング完了後にDBから未解析個性・特技を取得、デフォルトで逆順スクレイピング）
-- `.github/workflows/daily_scraping.yml`: GitHub Actionsワークフロー（cron: `'2 15 * * *'`、逆順スクレイピングのみ）
-  - `analysis/run_stage1.py`: 解析スクリプト（モデル: `gemini-2.5-flash`、1キャラ3個性ずつ処理、`--alien-ids`オプションで特定IDのみ解析）
-  - `scripts/scraping/combined_scraper.py`: スクレイピングと画像取得を統合（逆順スクレイピング機能付き）
-  - `app.py`: Flaskアプリ（`/api/admin/trigger-full-scrape`エンドポイントで全体スクレイピングを手動トリガー、`/api/admin/trigger-partial-scrape`で部分スクレイピングを手動トリガー）
-  - `templates/index.html`: 管理モードUI（ヘッダーに「全体」ボタンと「実行」ボタンを追加）
-- **処理フロー（逆順スクレイピング）**:
-  1. データベースから最新のエイリアンIDを取得
-  2. スクレイピング先の最後のページから最新のエイリアンIDを取得
-  3. 最新から逆順にチェックし、新しいエイリアンのみスクレイピング
-  4. スクレイピング完了後、alienテーブルと画像追加を完了
-  5. スクレイピング対象ID（`new_alien_ids`）から未解析個性・特技を取得（`get_unanalyzed_skill_texts_for_alien_ids()`を使用）
-  6. 未解析個性・特技テキストの既存解析データを削除
-  7. LLM解析（`run_stage1.py`で`--unanalyzed-only --alien-ids <ID列>`を使用、1キャラ3個性ずつ処理）
-  8. Discord通知
-- **処理フロー（全体スクレイピング）**:
-  1. 全ページをスクレイピング実行（`combined_scraper.py`を使用）
-  2. スクレイピング完了後、alienテーブルと画像追加を完了
-  3. 画像が存在しないエイリアンの画像をダウンロード（`static/images`に保存）
-  4. スクレイピング対象ID（`new_alien_ids`）から未解析個性・特技を取得（`get_unanalyzed_skill_texts_for_alien_ids()`を使用）
-  5. 未解析個性・特技テキストの既存解析データを削除
-  6. LLM解析（`run_stage1.py`で`--unanalyzed-only --alien-ids <ID列>`を使用、1キャラ3個性ずつ処理）
-  7. Discord通知
-- **処理フロー（部分スクレイピング）**:
-  1. 指定ID（`scrape_ids`）のエイリアンのみスクレイピング実行（`combined_scraper.py`を使用、URL内ではなく指定された図鑑Noを直接参照）
-  2. スクレイピング完了後、alienテーブルと画像追加を完了
-  3. 画像が存在しないエイリアンの画像をダウンロード（`static/images`に保存）
-  4. **解析は実行しない**（`--skip-analysis`フラグにより解析をスキップ）
-  5. Discord通知（スクレイピング結果のみ）
-- **処理フロー（解析専用モード）**:
-  1. スクレイピングをスキップ（`--skip-scraping`、URL先への接続は行わない）
-  2. 指定ID（`analysis_ids`）をDB内から検索し、存在するIDのみを使用
-  3. DB内の`alien`テーブルから指定IDの個性・特技テキストを取得（`get_skill_texts_for_alien_ids()`を使用）
-  4. 取得した個性・特技テキストの既存解析データを削除（`delete_existing_analysis()`を使用）
-  5. LLM解析（`run_stage1.py`で`--unanalyzed-only --alien-ids <ID列>`を使用、1キャラ3個性ずつ処理）
-  6. 解析結果で既存効果を置き換え（`skill_text_verified_effects`テーブルに登録）
-  7. Discord通知（解析結果を含む）
+1. ヘッダー左端「管」→ パスワード入力で管理モードへ
+2. 「実行」メニューからモードを選択
+   - **全体スクレイピング**: 全件スクレイピング＋解析（Wiki負荷が高いため必要時のみ）
+   - **部分スクレイピング**: `parse_id_list()`で正規化した `scrape_ids` だけをスクレイピング（`--skip-analysis`固定）
+   - **指定解析**: スクレイピングせず、DB上の既存データのみを `analysis_ids` で再解析
+3. いずれもバックグラウンドで `run_automated_update.py` を起動し、UIとDiscordに進捗を返す
 
-**重要な設計思想**:
-- **スクレイピング完了後のDB参照**: スクレイピング完了後、alienテーブルと画像追加を完了してから、**DB内の「スクレイピングで保存したID」を参照**して解析対象を取得する
-- **スクレイピング対象IDの決定**:
-  - 逆順スクレイピング/全体スクレイピング: `new_alien_ids`（新規追加されたID）
-  - 部分スクレイピング: `scrape_ids`（指定されたID、全てスクレイピングされた、**解析は実行しない**）
-  - 解析専用モード: `analysis_ids`（指定されたID、DB内から検索、URL接続なし）
-- **未解析個性・特技の取得**: 
-  - スクレイピング後: `get_unanalyzed_skill_texts_for_alien_ids()`で、スクレイピング対象IDから未解析個性・特技テキストを取得（DBの`skill_text_verified_effects`テーブルと比較）
-  - 解析専用モード: `get_skill_texts_for_alien_ids()`で、指定IDの全個性・特技テキストを取得（既存解析データを削除してから再解析）
-- **解析対象IDの指定**: `run_stage1.py`に`--alien-ids`オプションを渡すことで、指定されたIDのみを解析する（URL内の間違ったIDを参照しない）
-- **Discord通知**: スクレイピング・解析の開始時と完了時に必ず通知を送信（変更がない場合でも開始通知は送信、完了通知は変更がある場合のみ送信）
+補足:
+- `scrape_ids` は画像/ステータス同期用途で解析は必ずスキップ
+- 解析専用モードはDBに存在しないIDを自動除外
+- ◯/✗や名前の赤字表示は `ALIEN_SKILL_DATA` と `checkInvalidData()` を共通利用し、管理モード専用分岐を増やさない
 
-**ユーザー側で必要な設定**:
+### 7.3 Git自動プッシュと資産同期
 
-1. **GitHub Actionsのシークレット設定**:
-   - `DATABASE_URL`: PostgreSQLデータベース接続URL
-   - `GEMINI_API_KEY_2`: Gemini APIキー（本番用）
-   - `SCRAPING_BASE_URL`: スクレイピング対象のベースURL
-   - `DISCORD_WEBHOOK_URL`: Discord通知用Webhook URL
+- `scripts/run_automated_update.py` は成功終了時に `AUTO_GIT_TARGETS`（既定: `static/images`, `backups/skill_list_fixed.jsonl`）を強制ステージ→コミット→ `AUTO_GIT_REMOTE/AUTO_GIT_BRANCH`（既定: `origin/main`）へプッシュ
+- 主な環境変数: `AUTO_GIT_PUSH`, `AUTO_GIT_TARGETS`, `AUTO_GIT_COMMIT_MESSAGE`, `AUTO_GIT_USER_NAME`, `AUTO_GIT_USER_EMAIL`, `AUTO_GIT_REMOTE`, `AUTO_GIT_BRANCH`, `ADMIN_AUTO_GIT_PUSH`
+- 管理モードから起動するサブプロセスは `ADMIN_AUTO_GIT_PUSH` が未設定または真値なら `AUTO_GIT_PUSH=1` を強制付与し、`ADMIN_AUTO_GIT_PUSH=0` の場合は常に push 無効で起動する（`build_scraper_subprocess_env()` で制御）
+- GitHub Actionsでは `GITHUB_TOKEN` と上記環境変数をセットした状態で `actions/checkout@v4（fetch-depth: 0）` を実行
+- Render 等の常設環境では Start Command を以下の1行にして `.git` 初期化と `origin` 設定を自動化（`GIT_PAT` は環境変数で管理）
+  bash -lc 'set -e; cd /opt/render/project/src; git config --global --add safe.directory /opt/render/project/src; if [ ! -d .git ]; then git init; git remote add origin https://${GIT_PAT}@github.com/fuyuyu0111/elitama-generator.git; git fetch origin main; git checkout -f main; elif git remote | grep -q origin; then git remote set-url origin https://${GIT_PAT}@github.com/fuyuyu0111/elitama-generator.git; else git remote add origin https://${GIT_PAT}@github.com/fuyuyu0111/elitama-generator.git; fi; gunicorn app:app'
 
-2. **ローカル環境変数設定**（`.env`ファイル）:
-   - `DATABASE_URL`: PostgreSQLデータベース接続URL
-   - `GEMINI_API_KEY_1`: Gemini APIキー（テスト用、オプション）
-   - `GEMINI_API_KEY_2`: Gemini APIキー（本番用）
-   - `SCRAPING_BASE_URL`: スクレイピング対象のベースURL（オプション、コマンドライン引数でも指定可能）
-   - `DISCORD_WEBHOOK_URL`: Discord通知用Webhook URL（オプション）
+- スクレイピングや解析フェーズで例外が出ず正常終了したケースに限り `auto_push_updated_assets_if_needed()` が呼ばれ、問題が発生した際はコミット／プッシュをスキップしてログに失敗理由のみ出力
+- 自動プッシュに失敗した場合は `[auto-push] プッシュに失敗しました: ...` とログを残すだけで処理は継続し、後から手動で同期できる
+- ローカル実行時は `AUTO_GIT_PUSH` を設定しない限り push されない
 
-3. **画像保存先の確認**:
-- 画像は`static/images`ディレクトリに直接保存されます（`{alien_id}.png`形式）
-- 画像が存在しないエイリアンのみ、スクレイピング時に自動でダウンロードされます（GitHub Actionsではワークスペース内のみに保存され、コミット・プッシュは自動では行われません）
+### 7.4 PWA化（Progressive Web App）
 
-4. **解析専用モード（任意）**:
-- 既存データへの再解析時は `python scripts/run_automated_update.py --skip-scraping --analysis-ids 1611-1623` のように実行
-- 範囲指定（`1611-1623`）やカンマ区切り（`1611,1614,1618`）に対応
-- 解析結果のバックアップは `backups/stage1/` に自動生成される（GitHub Actionsでは自動コミットされない）
-
-### 手動スクレイピング・解析機能 ✅ **実装完了**
-
-メインアプリの管理モードから、以下の3種類の手動実行が可能です。
-
-**使用方法**:
-
-1. **管理モードにログイン**:
-   - メインアプリのヘッダー左端の「管理」ボタンをタップ
-   - パスワードを入力してログイン
-
-2. **実行モードの選択**:
-   - 管理モードに入ると、ヘッダーに「実行」ボタンが表示されます
-   - 「実行」ボタンをタップしてメニューを開く
-
-#### 全体スクレイピング
-
-- **説明**: 全エイリアンのデータをスクレイピングし、新規・更新された個性・特技を解析
-- **実行方法**: 「実行」メニューから「全体スクレイピング」を選択
-- **処理内容**:
-  - 全ページをスクレイピング実行
-  - 新規・更新されたエイリアンのデータをDBに保存
-  - 画像が存在しないエイリアンの画像をダウンロード
-  - 未解析個性・特技をLLMで解析
-  - Discordに結果を通知
-- **注意事項**: 公式Wikiへの負荷が大きいため、必要な場合のみ実行してください
-
-#### 指定スクレイピング
-
-- **説明**: 図鑑Noで指定したエイリアンのみをスクレイピング（スクレイピングのみ、解析は行わない）
-- **実行方法**: 「実行」メニューから「部分スクレイピング」を選択し、図鑑Noを入力（例: `1601,1603-1605`）
-- **処理内容**:
-  - 指定された図鑑Noのエイリアンのみをスクレイピング（URL内ではなく指定された図鑑Noを直接参照）
-  - スクレイピングしたデータをDBに保存
-  - 画像が存在しないエイリアンの画像をダウンロード
-  - **解析は実行しない**（`--skip-analysis`フラグによりスキップ）
-  - Discordに結果を通知
-- **使用例**: ステータスの上方修正を検出する場合など
-
-#### 指定解析
-
-- **説明**: 図鑑Noで指定したエイリアンの個性・特技を再解析（スクレイピングは行わず、DB内データのみを使用）
-- **実行方法**: 「実行」メニューから「指定解析のみ実行」を選択し、図鑑Noを入力（例: `1611-1613,1615`）
-- **処理内容**:
-  - **URL先への接続は行わない**
-  - 指定された図鑑NoをDB内から検索し、存在するIDのみを使用
-  - DB内の`alien`テーブルから指定IDの個性・特技テキストを取得
-  - 取得した個性・特技テキストの既存解析データを削除
-  - LLMで再解析を実行
-  - 解析結果で既存効果を置き換え（`skill_text_verified_effects`テーブルに登録）
-  - Discordに結果を通知
-- **使用例**: 解析結果の修正や再解析が必要な場合
-
-**Discord通知**:
-- 各処理の開始時に開始通知を送信
-- 処理完了時に結果通知を送信（変更がある場合のみ、変更がない場合は送信しない）
-- エラー発生時はエラー通知を送信
-
-### PWA化（Progressive Web App）✅ **実装完了**
-
-- ホーム画面に追加できるようにする（アドレスバーを完全に非表示にするため）
-- `manifest.json`の作成とPWA用メタタグの追加
-- アイコンの準備（192x192、512x512）
-- `display: "standalone"`でアプリのような体験を提供
+- `manifest.json` と PWA 用 meta タグを用意し、「ホーム画面に追加」で standalone 表示に切り替え
+- 192x192 / 512x512 アイコンを同梱し、モバイルでもアプリ感覚で操作できる
