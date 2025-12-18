@@ -652,6 +652,7 @@ def format_effect_names_for_prompt() -> str:
         "毒ダメージ軽減": "",
         "毒効果時間短縮": "",
         "気絶時間短縮": "「気絶になった際の効果時間が短くなる」など、気絶時間を短縮する効果",
+        "気絶確率軽減": "「気絶しにくくなるぞ！」といった気絶完全無効ではない効果",
         "特技被ダメージ軽減": "",
         "被クリティカルダメージ軽減": "",
         "被ダメージ軽減": "表記ゆれ: 被ダメ軽減、ダメージ軽減",
@@ -918,8 +919,7 @@ def prepare_stage1_effects_for_db(effects_list: List[Dict], skill_text: str, con
             effect_type, category = auto_complete_classification(effect_name, conn)
         
         if effect_type is None or category is None:
-            print(f"    警告: 効果名 '{effect_name}' が辞書に見つかりません。スキップします。")
-            continue
+            print(f"    警告: 効果名 '{effect_name}' が辞書に見つかりません。不整合データとして登録します（管理モードで修正可能）。")
 
         # 数値変換
         requirement_count = int_or_none(effect_data.get("requirement_count"))
