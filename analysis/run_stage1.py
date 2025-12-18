@@ -43,15 +43,18 @@ BACKUP_DIR = PROJECT_ROOT / "backups" / "stage1"
 
 # --- LLMとレート制限の設定 ---
 MODEL_NAME = "gemini-2.5-flash"
-# TPM: 1,000,000 tokens/分、RPM: 5 req/分の制限（Gemini 2.5 Flash Free Tier）を考慮
-# 安全マージン込みで15.0秒間隔に設定（実際のRPM: 4.0 req/分）
+# Gemini 2.5 Flash Free Tier (2025年12月時点):
+#   - RPM: 5 req/分
+#   - TPM: 250,000 tokens/分
+#   - RPD: ~20 req/日 (大幅削減)
+# 安全マージン込みで15.0秒間隔に設定（実際のRPM: 4.0 req/分、RPM 5の80%）
 ACTUAL_INTERVAL = 15.0  # 秒
 
 print(f"レート制限設定:")
 print(f"  モデル: {MODEL_NAME}")
 print(f"  リクエスト間隔: {ACTUAL_INTERVAL:.1f}秒")
 print(f"  想定スループット: {60.0 / ACTUAL_INTERVAL:.1f} req/分")
-print(f"  レート制限: TPM 1,000,000 tokens/分、RPM 10 req/分")
+print(f"  レート制限: TPM 250,000 tokens/分、RPM 5 req/分、RPD ~20 req/日")
 
 # --- キャッシュ ---
 _CORRECT_NAMES_CACHE = None
@@ -1565,58 +1568,67 @@ def main():
                     print(f"  警告: 以下のIDは見つかりませんでした: {sorted(missing_ids)}")
             if not characters:
                 return
+            # まず全キャラから**ユニークな個性テキスト**を収集
+            # （同じランクのキャラは同じ個性を持つことが多いため、重複解析を防ぐ）
+            all_skill_texts = set()
+            char_ids_with_skills = []
             
-            # 1キャラずつ処理（3個性を順番に解析）
-            final_all_rows = []
-            failed_skills_final = []
-            total_tokens = 0
-            
-            for char_idx, char in enumerate(characters, 1):
-                print(f"\n[{char_idx}/{len(characters)}] キャラクターID {char['id']} を処理中...")
-                
-                # 3個性をリストに変換（Noneや'なし'を除外）
-                skill_texts_for_char = []
+            for char in characters:
+                char_skill_texts = []
                 for i in range(1, 4):
                     skill_text = char.get(f'skill_text{i}')
                     if skill_text and skill_text != 'なし':
-                        skill_texts_for_char.append(skill_text)
+                        char_skill_texts.append(skill_text)
+                        all_skill_texts.add(skill_text)
                 
-                if not skill_texts_for_char:
-                    print(f"  キャラクターID {char['id']} には解析対象の個性がありません。スキップします。")
-                    continue
+                if char_skill_texts:
+                    char_ids_with_skills.append(char['id'])
+            
+            unique_skill_texts = list(all_skill_texts)
+            print(f"\n全キャラから収集した個性テキスト: {len(unique_skill_texts)}件（ユニーク）")
+            if len(unique_skill_texts) < sum(1 for c in characters for i in range(1, 4) if c.get(f'skill_text{i}') and c.get(f'skill_text{i}') != 'なし'):
+                print(f"  ※ 重複排除により解析リクエスト数を削減しました")
+            
+            if not unique_skill_texts:
+                print("解析対象の個性テキストがありません。")
+                return
+            
+            # ユニークな個性テキストを一括で解析
+            final_all_rows = []
+            failed_skills_final = []
+            total_tokens = 0
+            is_special = False
+            
+            print(f"\nLLMによる解析を開始します（{ACTUAL_INTERVAL:.1f}秒間隔）")
+            
+            if args.sequential_check:
+                # 逐次処理で2重チェック
+                char_rows, char_failed, char_tokens = process_skill_texts_sequential_with_check(
+                    unique_skill_texts, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                )
+                final_all_rows.extend(char_rows)
+                failed_skills_final.extend(char_failed)
+                if char_tokens is not None:
+                    total_tokens += char_tokens
+            else:
+                # 並列処理
+                all_rows, failed_skills, tokens = asyncio.run(process_skill_texts_parallel(
+                    unique_skill_texts, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                ))
+                final_all_rows.extend(all_rows)
+                failed_skills_final.extend(failed_skills)
+                if tokens is not None:
+                    total_tokens += tokens
                 
-                print(f"  個性数: {len(skill_texts_for_char)}件")
-                
-                # 個性テキストを順番に解析
-                is_special = False
-                if args.sequential_check:
-                    # 逐次処理で2重チェック
-                    char_rows, char_failed, char_tokens = process_skill_texts_sequential_with_check(
-                        skill_texts_for_char, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
-                    )
-                    final_all_rows.extend(char_rows)
-                    failed_skills_final.extend(char_failed)
-                    if char_tokens is not None:
-                        total_tokens += char_tokens
-                else:
-                    # 並列処理
-                    char_rows, char_failed, char_tokens = asyncio.run(process_skill_texts_parallel(
-                        skill_texts_for_char, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
+                # リトライ処理
+                if failed_skills:
+                    print(f"  リトライ: {len(failed_skills)}件")
+                    retry_rows, retry_failed, _ = asyncio.run(process_skill_texts_parallel(
+                        failed_skills, client, MODEL_NAME, ACTUAL_INTERVAL, conn, is_special_skill=is_special
                     ))
-                    final_all_rows.extend(char_rows)
-                    failed_skills_final.extend(char_failed)
-                    if char_tokens is not None:
-                        total_tokens += char_tokens
-                    
-                    # リトライ処理
-                    if char_failed:
-                        print(f"  リトライ: {len(char_failed)}件")
-                        retry_rows, retry_failed, _ = asyncio.run(process_skill_texts_parallel(
-                            char_failed, client, MODEL_NAME, ACTUAL_INTERVAL, conn, is_special_skill=is_special
-                        ))
-                        final_all_rows.extend(retry_rows)
-                        failed_skills_final = [s for s in failed_skills_final if s not in retry_failed]
-                        failed_skills_final.extend(retry_failed)
+                    final_all_rows.extend(retry_rows)
+                    failed_skills_final = [s for s in failed_skills_final if s not in retry_failed]
+                    failed_skills_final.extend(retry_failed)
             
             print(f"\n全解析完了: 合計 {len(final_all_rows)} 件の効果を抽出しました。")
             print(f"失敗: {len(failed_skills_final)} 件")
