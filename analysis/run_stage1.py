@@ -309,29 +309,29 @@ def fetch_characters_with_skills_from_db(conn, limit: Optional[int] = None, offs
             )
             ORDER BY a.id
             """
-        else:
-            # 全てのキャラを取得
-            if alien_ids:
-                # 特定のIDのみを取得
-                id_placeholders = ','.join(['%s'] * len(alien_ids))
-                query = f"""
-                SELECT id, skill_text1, skill_text2, skill_text3
-                FROM {SOURCE_TABLE_ALIEN}
-                WHERE id IN ({id_placeholders})
-                  AND (skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-                       OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-                       OR skill_text3 IS NOT NULL AND skill_text3 != 'なし')
-                ORDER BY id
-                """
-            else:
-                query = f"""
-                SELECT id, skill_text1, skill_text2, skill_text3
-                FROM {SOURCE_TABLE_ALIEN}
-                WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+    else:
+        # 全てのキャラを取得
+        if alien_ids:
+            # 特定のIDのみを取得
+            id_placeholders = ','.join(['%s'] * len(alien_ids))
+            query = f"""
+            SELECT id, skill_text1, skill_text2, skill_text3
+            FROM {SOURCE_TABLE_ALIEN}
+            WHERE id IN ({id_placeholders})
+              AND (skill_text1 IS NOT NULL AND skill_text1 != 'なし'
                    OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-                   OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-                ORDER BY id
-                """
+                   OR skill_text3 IS NOT NULL AND skill_text3 != 'なし')
+            ORDER BY id
+            """
+        else:
+            query = f"""
+            SELECT id, skill_text1, skill_text2, skill_text3
+            FROM {SOURCE_TABLE_ALIEN}
+            WHERE skill_text1 IS NOT NULL AND skill_text1 != 'なし'
+               OR skill_text2 IS NOT NULL AND skill_text2 != 'なし'
+               OR skill_text3 IS NOT NULL AND skill_text3 != 'なし'
+            ORDER BY id
+            """
     
     params = []
     if alien_ids:
