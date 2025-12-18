@@ -1647,33 +1647,17 @@ def main():
                 final_all_rows = all_rows
                 failed_skills_final = failed_skills_initial
             else:
-                # 並列処理（既存の処理）
-                all_rows, failed_skills_initial, total_tokens = asyncio.run(process_skill_texts_parallel(
+                # バッチ処理（内部でリトライも実行される）
+                all_rows, failed_skills_final, total_tokens = asyncio.run(process_skill_texts_parallel(
                     skill_texts, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
                 ))
-                print(f"\n初回解析完了: {len(all_rows)} 件の効果を抽出しました。")
-                print(f"初回失敗: {len(failed_skills_initial)} 件")
+                print(f"\n解析完了: {len(all_rows)} 件の効果を抽出しました。")
+                print(f"失敗: {len(failed_skills_final)} 件")
                 if total_tokens is not None:
                     print(f"総入力トークン数: {total_tokens} tokens")
 
-                # --- リトライ処理 ---
-                retry_rows = []
-                failed_skills_final = []
-                if failed_skills_initial:
-                    print(f"\n--- リトライ解析 ({len(failed_skills_initial)} 件) ---")
-                    retry_rows, failed_skills_final, _ = asyncio.run(process_skill_texts_parallel(
-                        failed_skills_initial, client, MODEL_NAME, ACTUAL_INTERVAL, conn, is_special_skill=is_special
-                    ))
-                    print(f"リトライ完了: {len(retry_rows)} 件の効果を追加抽出。")
-                    print(f"最終失敗: {len(failed_skills_final)} 件")
-                    if failed_skills_final:
-                        print("最終的に失敗した特技:", ", ".join([
-                            f"「{s[:20]}...」" for s in failed_skills_final[:20]
-                        ]))
-
-                # 全ての成功データを結合
-                final_all_rows = all_rows + retry_rows
-                print(f"\n全解析完了: 合計 {len(final_all_rows)} 件の効果を抽出しました。")
+                # 全ての成功データ
+                final_all_rows = all_rows
         else:
             # 個性の場合は1キャラ（3個性）ずつ処理
             print("データベースからキャラクター（1キャラ3個性ずつ）を読み込んでいます...")
@@ -1736,7 +1720,7 @@ def main():
                 if char_tokens is not None:
                     total_tokens += char_tokens
             else:
-                # 並列処理
+                # バッチ処理（内部でリトライも実行される）
                 all_rows, failed_skills, tokens = asyncio.run(process_skill_texts_parallel(
                     unique_skill_texts, client, MODEL_NAME, ACTUAL_INTERVAL, conn, count_tokens=True, is_special_skill=is_special
                 ))
@@ -1744,16 +1728,6 @@ def main():
                 failed_skills_final.extend(failed_skills)
                 if tokens is not None:
                     total_tokens += tokens
-                
-                # リトライ処理
-                if failed_skills:
-                    print(f"  リトライ: {len(failed_skills)}件")
-                    retry_rows, retry_failed, _ = asyncio.run(process_skill_texts_parallel(
-                        failed_skills, client, MODEL_NAME, ACTUAL_INTERVAL, conn, is_special_skill=is_special
-                    ))
-                    final_all_rows.extend(retry_rows)
-                    failed_skills_final = [s for s in failed_skills_final if s not in retry_failed]
-                    failed_skills_final.extend(retry_failed)
             
             print(f"\n全解析完了: 合計 {len(final_all_rows)} 件の効果を抽出しました。")
             print(f"失敗: {len(failed_skills_final)} 件")
