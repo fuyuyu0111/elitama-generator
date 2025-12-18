@@ -350,7 +350,7 @@ def delete_existing_analysis(conn, skill_texts: Set[str]) -> None:
         conn.rollback()
 
 
-def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = "regular", alien_ids: Optional[List[int]] = None) -> Tuple[bool, str]:
+def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = "regular", alien_ids: Optional[List[int]] = None, force_reanalyze: bool = False) -> Tuple[bool, str]:
     """
     指定された個性または特技テキストをLLMで解析
     
@@ -359,6 +359,7 @@ def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = 
         skill_texts: 解析対象のスキルテキストセット
         skill_type: "regular"（個性）または"special"（特技）
         alien_ids: 解析対象のエイリアンIDリスト（指定された場合、そのIDのみを解析）
+        force_reanalyze: Trueの場合、既存データも再解析（insert_effectsのUPSERTで上書き）
     
     Returns:
         (成功した場合True, メッセージ)
@@ -368,32 +369,34 @@ def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = 
         return True, f"変更・追加された{skill_type_name}テキストがないため、解析をスキップしました。"
     
     try:
-        # 変更・追加されたテキストの既存解析データを削除（再解析のため）
-        print(f"  変更・追加されたテキストの既存解析データを削除中...")
-        delete_existing_analysis(conn, skill_texts)
+        # 既存データは削除せず、insert_effectsのUPSERTロジックで上書き
+        # （レート制限等でサブプロセスが失敗しても既存データは保持される）
         
         analysis_module_path = PROJECT_ROOT / 'analysis'
         run_stage1_path = analysis_module_path / 'run_stage1.py'
         
         # 個性と特技で異なるオプションを使用
+        # force_reanalyze=Falseの場合は--unanalyzed-onlyで未解析のみ
+        # force_reanalyze=Trueの場合は既存データも再解析（UPSERTで上書き）
         if skill_type == "regular":
             # 個性テキストのみ解析
-            # --unanalyzed-onlyを使用（既存データを削除したので、未解析として扱われる）
             cmd = [
                 sys.executable,
                 str(run_stage1_path),
-                '--unanalyzed-only',
                 '--regular-skills-only'
             ]
+            if not force_reanalyze:
+                cmd.append('--unanalyzed-only')
             skill_type_name = "個性"
         elif skill_type == "special":
             # 特技テキストのみ解析
             cmd = [
                 sys.executable,
                 str(run_stage1_path),
-                '--unanalyzed-only',
                 '--special-skills-only'
             ]
+            if not force_reanalyze:
+                cmd.append('--unanalyzed-only')
             skill_type_name = "特技"
         else:
             return False, f"無効なskill_type: {skill_type}（'regular'または'special'を指定してください）"
@@ -751,7 +754,7 @@ def main(
                 try:
                     print("\n--- 3-1: 個性テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=combined_target_ids if combined_target_ids else None)
+                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=combined_target_ids if combined_target_ids else None, force_reanalyze=bool(analysis_target_ids))
                     if success:
                         print(f"個性解析完了: {message}")
                         # 解析結果を取得
@@ -774,7 +777,7 @@ def main(
                 try:
                     print("\n--- 3-2: 特技テキスト解析 ---")
                     conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=combined_target_ids if combined_target_ids else None)
+                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=combined_target_ids if combined_target_ids else None, force_reanalyze=bool(analysis_target_ids))
                     if success:
                         print(f"特技解析完了: {message}")
                         # 解析結果を取得
