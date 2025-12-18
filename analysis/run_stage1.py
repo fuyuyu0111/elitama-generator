@@ -870,12 +870,32 @@ def auto_complete_s_skill_classification(effect_name: str, conn) -> Tuple[Option
     return None, None
 
 
-# --- プロンプト構築 ---
-def build_prompt_for_skill(skill_text: str, is_special_skill: bool = False) -> Optional[str]:
-    """個性または特技テキストから1段階目プロンプトを構築"""
-    if not skill_text or skill_text == "なし":
-        return None
+# --- プロンプト構築（バッチ版: 最大3個性を1リクエストで処理） ---
+BATCH_SIZE = 3  # 1リクエストあたりの最大個性数
 
+def build_batch_prompt(skill_texts: List[str], is_special_skill: bool = False) -> Optional[str]:
+    """
+    最大3つの個性または特技テキストから1つのプロンプトを構築
+    
+    Args:
+        skill_texts: 解析対象のスキルテキストリスト（1-3件）
+        is_special_skill: 特技の場合True
+    
+    Returns:
+        構築されたプロンプト（失敗時はNone）
+    """
+    if not skill_texts:
+        return None
+    
+    # 最大3件まで
+    texts = skill_texts[:BATCH_SIZE]
+    
+    # 3スロット分のテキストを準備（不足分は「なし」で埋める）
+    slot_texts = ["なし", "なし", "なし"]
+    for i, text in enumerate(texts):
+        if text and text.strip() and text != "なし":
+            slot_texts[i] = text
+    
     if is_special_skill:
         # 特技用プロンプト
         prompt_template = load_prompt_template(S_SKILL_PROMPT_PATH)
@@ -884,7 +904,6 @@ def build_prompt_for_skill(skill_text: str, is_special_skill: bool = False) -> O
         
         effect_names_text = format_s_skill_effect_names_for_prompt()
         prompt = prompt_template.replace("{effect_names_list}", effect_names_text)
-        prompt = prompt.replace("{s_skill_text}", skill_text)
     else:
         # 個性用プロンプト
         prompt_template = load_prompt_template(PROMPT_PATH)
@@ -893,9 +912,29 @@ def build_prompt_for_skill(skill_text: str, is_special_skill: bool = False) -> O
 
         effect_names_text = format_effect_names_for_prompt()
         prompt = prompt_template.replace("{effect_names_list}", effect_names_text)
-        prompt = prompt.replace("{skill_text}", skill_text)
+    
+    # 3スロットに値を埋め込む
+    prompt = prompt.replace("{skill_text1}", slot_texts[0])
+    prompt = prompt.replace("{skill_text2}", slot_texts[1])
+    prompt = prompt.replace("{skill_text3}", slot_texts[2])
     
     return prompt
+
+
+def build_prompt_for_skill(skill_text: str, is_special_skill: bool = False) -> Optional[str]:
+    """
+    単一スキル用のプロンプト構築（バッチプロンプトのラッパー）
+    
+    Args:
+        skill_text: 解析対象のスキルテキスト
+        is_special_skill: 特技の場合True
+    
+    Returns:
+        構築されたプロンプト（失敗時はNone）
+    """
+    if not skill_text or skill_text == "なし":
+        return None
+    return build_batch_prompt([skill_text], is_special_skill=is_special_skill)
 
 
 # --- バッチプロンプト構築（複数個性を1リクエストで処理） ---
@@ -1143,9 +1182,7 @@ def display_and_check_llm_output(skill_text: str, effects_list: List[Dict]) -> L
     return effects_list
 
 
-# --- バッチ処理（3個性を1リクエストで処理） ---
-BATCH_SIZE = 3  # 1リクエストあたりの最大個性数
-
+# --- バッチ処理（最大3個性を1リクエストで処理） ---
 async def process_skill_texts_parallel(
     skill_texts: List[str],
     client: genai.Client,
@@ -1156,8 +1193,7 @@ async def process_skill_texts_parallel(
     is_special_skill: bool = False
 ) -> Tuple[List[Tuple], List[str], Optional[int]]:
     """
-    個性テキストを3つずつバッチでまとめて解析し、各リクエスト間に一定間隔を設ける
-    ※ 名前は「parallel」だが、実際はレート制限対応のため逐次処理を行う
+    個性テキストを最大3つずつバッチで送信し、各リクエスト間に一定間隔を設ける
     
     Returns:
         (all_rows, failed_skills, total_tokens)
@@ -1166,49 +1202,42 @@ async def process_skill_texts_parallel(
     all_rows = []
     failed_skills = []
     total_tokens = None
-    retry_skills = []  # 失敗した個性テキスト（リトライ用）
+    skill_type_name = "特技" if is_special_skill else "個性"
     
-    # スキルテキストをバッチに分割
+    # バッチに分割
     batches = []
     for i in range(0, total_skills, BATCH_SIZE):
         batch = skill_texts[i:i + BATCH_SIZE]
         batches.append(batch)
     
     total_batches = len(batches)
-    skill_type_name = "特技" if is_special_skill else "個性"
+    
     print(f"\nLLMによるバッチ解析を開始します")
     print(f"  {skill_type_name}テキスト数: {total_skills}件")
-    print(f"  バッチ数: {total_batches}件（{BATCH_SIZE}個ずつ）")
+    print(f"  バッチ数: {total_batches}件（最大{BATCH_SIZE}個ずつ）")
     print(f"  リクエスト間隔: {interval:.1f}秒")
+    print(f"  予想所要時間: 約{int(total_batches * interval / 60)}分")
     
     for batch_idx, batch in enumerate(batches):
+        # === リクエスト前に待機（最初のバッチ以外） ===
+        if batch_idx > 0:
+            print(f"    {interval:.1f}秒待機中...")
+            time.sleep(interval)
+        
         batch_start = batch_idx * BATCH_SIZE + 1
         batch_end = min((batch_idx + 1) * BATCH_SIZE, total_skills)
         
         # バッチプロンプト作成
-        prompt = build_batch_prompt_for_skills(batch, is_special_skill=is_special_skill)
+        prompt = build_batch_prompt(batch, is_special_skill=is_special_skill)
         if not prompt:
-            # バッチプロンプト作成失敗時は個別処理にフォールバック
-            print(f"[バッチ {batch_idx + 1}/{total_batches}] プロンプト作成失敗、個別処理にフォールバック")
-            for skill in batch:
-                single_prompt = build_prompt_for_skill(skill, is_special_skill=is_special_skill)
-                if single_prompt:
-                    result = call_gemini_sync(client, model_name, single_prompt, count_tokens)
-                    if result[0]:
-                        effects = parse_stage1_response(result[0])
-                        if effects is not None:
-                            rows = prepare_stage1_effects_for_db(effects, skill, conn, is_special_skill=is_special_skill)
-                            all_rows.extend(rows)
-                        else:
-                            failed_skills.append(skill)
-                    else:
-                        failed_skills.append(skill)
-                time.sleep(interval)
+            print(f"[バッチ {batch_idx + 1}/{total_batches}] プロンプト作成失敗")
+            failed_skills.extend(batch)
             continue
         
         # リクエスト送信
         print(f"[バッチ {batch_idx + 1}/{total_batches}] {skill_type_name}テキスト {batch_start}～{batch_end} を送信...")
         
+        # 同期API呼び出し
         result = call_gemini_sync(client, model_name, prompt, count_tokens)
         raw_response = result[0]
         token_count = result[1]
@@ -1216,10 +1245,15 @@ async def process_skill_texts_parallel(
         
         # 429エラーの場合
         if retry_after is not None and retry_after > 0:
-            print(f"    レート制限エラー: {retry_after:.1f}秒後にリトライ可能")
-            retry_skills.extend(batch)
-            failed_skills.extend(batch)
-        elif raw_response:
+            print(f"    レート制限エラー: {retry_after:.1f}秒待機後にリトライ")
+            time.sleep(retry_after + 5)  # 指定時間 + 余裕
+            
+            # リトライ
+            result = call_gemini_sync(client, model_name, prompt, count_tokens)
+            raw_response = result[0]
+            token_count = result[1]
+        
+        if raw_response:
             # トークンカウント
             if token_count is not None:
                 if total_tokens is None:
@@ -1230,61 +1264,26 @@ async def process_skill_texts_parallel(
             parsed_results = parse_batch_response(raw_response, batch)
             
             if parsed_results:
+                batch_success = 0
                 for skill_text, effects_list in parsed_results.items():
-                    if effects_list:
+                    if effects_list is not None:
                         rows = prepare_stage1_effects_for_db(effects_list, skill_text, conn, is_special_skill=is_special_skill)
                         all_rows.extend(rows)
-                    # 効果がない場合でも成功（空配列は正常）
+                        batch_success += 1
+                    else:
+                        if skill_text not in failed_skills:
+                            failed_skills.append(skill_text)
+                print(f"    成功: {batch_success}件 / {len(batch)}件")
             else:
-                # パース失敗
-                print(f"    バッチレスポンスのパースに失敗、失敗リストに追加")
-                failed_skills.extend(batch)
+                print(f"    失敗: バッチレスポンスのパースに失敗")
+                failed_skills.extend([s for s in batch if s not in failed_skills])
         else:
-            # レスポンスなし
-            failed_skills.extend(batch)
-        
-        # 次のリクエストまで間隔を空ける（最後のバッチ以外）
-        if batch_idx < total_batches - 1:
-            print(f"    {interval:.1f}秒待機中...")
-            time.sleep(interval)
+            print(f"    失敗: レスポンスなし")
+            failed_skills.extend([s for s in batch if s not in failed_skills])
     
     print(f"\n全 {total_batches} 件のバッチリクエスト送信完了。")
-    
-    # --- リトライ処理（失敗した個性を個別にリトライ） ---
-    if retry_skills:
-        print(f"\nリトライを開始します（{len(retry_skills)} 件、個別処理）...")
-        time.sleep(interval * 2)  # 余裕を持って待機
-        
-        for idx, retry_skill in enumerate(retry_skills):
-            print(f"[リトライ {idx + 1}/{len(retry_skills)}] {skill_type_name}テキスト「{retry_skill[:30]}...」を送信...")
-            
-            prompt = build_prompt_for_skill(retry_skill, is_special_skill=is_special_skill)
-            if not prompt:
-                continue
-            
-            result = call_gemini_sync(client, model_name, prompt, count_tokens)
-            retry_response = result[0]
-            retry_token_count = result[1]
-            
-            if retry_response:
-                if retry_token_count is not None:
-                    if total_tokens is None:
-                        total_tokens = 0
-                    total_tokens += retry_token_count
-                
-                retry_effects_list = parse_stage1_response(retry_response)
-                
-                if retry_effects_list is not None:
-                    retry_rows = prepare_stage1_effects_for_db(retry_effects_list, retry_skill, conn, is_special_skill=is_special_skill)
-                    all_rows.extend(retry_rows)
-                    # 成功したのでfailed_skillsから削除
-                    if retry_skill in failed_skills:
-                        failed_skills.remove(retry_skill)
-            
-            # 次のリクエストまで間隔を空ける（最後以外）
-            if idx < len(retry_skills) - 1:
-                print(f"    {interval:.1f}秒待機中...")
-                time.sleep(interval)
+    print(f"  成功: {total_skills - len(failed_skills)}件")
+    print(f"  失敗: {len(failed_skills)}件")
 
     return all_rows, failed_skills, total_tokens
 
