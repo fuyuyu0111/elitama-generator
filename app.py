@@ -5,6 +5,7 @@ import sys
 import secrets
 import subprocess
 import threading
+from threading import Lock
 from pathlib import Path
 from datetime import datetime
 import psycopg2
@@ -27,6 +28,12 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30分
 
 # 環境変数からパスワードを取得
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')  # デフォルトパスワード
+
+# バックグラウンド処理の排他制御
+_background_process_lock = Lock()
+_background_process_running = False
+_background_process_type = None  # "full_scrape", "partial_scrape", "analysis" など
+_background_process_start_time = None
 
 # ============================================================================
 # ユーティリティ
@@ -478,11 +485,35 @@ def api_admin_check_auth():
 @require_admin
 def api_admin_trigger_full_scrape():
     """全体スクレイピングを非同期で実行（管理モード専用）"""
+    global _background_process_running, _background_process_type, _background_process_start_time
+    
     try:
+        # 排他制御チェック
+        with _background_process_lock:
+            if _background_process_running:
+                elapsed = ""
+                if _background_process_start_time:
+                    elapsed_sec = (datetime.now() - _background_process_start_time).total_seconds()
+                    elapsed = f"（経過時間: {int(elapsed_sec)}秒）"
+                return jsonify({
+                    'success': False,
+                    'error': f'別の処理が実行中です: {_background_process_type}{elapsed}'
+                }), 409
+            
+            # ロックを取得
+            _background_process_running = True
+            _background_process_type = "全体スクレイピング"
+            _background_process_start_time = datetime.now()
+        
         scraping_url = os.environ.get('SCRAPING_BASE_URL')
         discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
         
         if not scraping_url:
+            # ロック解除
+            with _background_process_lock:
+                _background_process_running = False
+                _background_process_type = None
+                _background_process_start_time = None
             return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
         
         # 開始通知を送信
@@ -499,6 +530,7 @@ def api_admin_trigger_full_scrape():
         
         def run_scraping():
             """バックグラウンドでスクレイピングを実行"""
+            global _background_process_running, _background_process_type, _background_process_start_time
             try:
                 env = build_scraper_subprocess_env()
                 cmd = [
@@ -524,6 +556,12 @@ def api_admin_trigger_full_scrape():
                     app.logger.info(f"Full scrape completed: {result.stdout[-500:]}")
             except Exception as e:
                 app.logger.error(f"Full scrape error: {e}")
+            finally:
+                # 処理完了後にロック解除
+                with _background_process_lock:
+                    _background_process_running = False
+                    _background_process_type = None
+                    _background_process_start_time = None
         
         # バックグラウンドスレッドで実行
         thread = threading.Thread(target=run_scraping)
@@ -536,6 +574,11 @@ def api_admin_trigger_full_scrape():
         })
         
     except Exception as e:
+        # エラー時もロック解除
+        with _background_process_lock:
+            _background_process_running = False
+            _background_process_type = None
+            _background_process_start_time = None
         app.logger.error(f"Trigger full scrape error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -543,15 +586,39 @@ def api_admin_trigger_full_scrape():
 @require_admin
 def api_admin_trigger_partial_scrape():
     """指定IDのみスクレイピングを非同期で実行"""
+    global _background_process_running, _background_process_type, _background_process_start_time
+    
     data = request.json or {}
     try:
         ids = parse_id_list(data.get('ids'))
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     
+    # 排他制御チェック
+    with _background_process_lock:
+        if _background_process_running:
+            elapsed = ""
+            if _background_process_start_time:
+                elapsed_sec = (datetime.now() - _background_process_start_time).total_seconds()
+                elapsed = f"（経過時間: {int(elapsed_sec)}秒）"
+            return jsonify({
+                'success': False,
+                'error': f'別の処理が実行中です: {_background_process_type}{elapsed}'
+            }), 409
+        
+        # ロックを取得
+        _background_process_running = True
+        _background_process_type = "部分スクレイピング"
+        _background_process_start_time = datetime.now()
+    
     scraping_url = os.environ.get('SCRAPING_BASE_URL')
     discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
     if not scraping_url:
+        # ロック解除
+        with _background_process_lock:
+            _background_process_running = False
+            _background_process_type = None
+            _background_process_start_time = None
         return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
     
     ids_arg = ','.join(str(i) for i in ids)
@@ -571,6 +638,7 @@ def api_admin_trigger_partial_scrape():
             app.logger.warning(f"開始通知の送信に失敗しました: {e}")
     
     def run_partial():
+        global _background_process_running, _background_process_type, _background_process_start_time
         try:
             env = build_scraper_subprocess_env()
             cmd = [
@@ -595,6 +663,12 @@ def api_admin_trigger_partial_scrape():
                 app.logger.info(f"Partial scrape completed: {result.stdout[-500:]}")
         except Exception as e:
             app.logger.error(f"Partial scrape error: {e}")
+        finally:
+            # 処理完了後にロック解除
+            with _background_process_lock:
+                _background_process_running = False
+                _background_process_type = None
+                _background_process_start_time = None
     
     thread = threading.Thread(target=run_partial, daemon=True)
     thread.start()
@@ -608,15 +682,39 @@ def api_admin_trigger_partial_scrape():
 @require_admin
 def api_admin_trigger_analysis_only():
     """指定IDの解析のみを非同期で実行（スクレイピングは行わない）"""
+    global _background_process_running, _background_process_type, _background_process_start_time
+    
     data = request.json or {}
     try:
         ids = parse_id_list(data.get('ids'))
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     
+    # 排他制御チェック
+    with _background_process_lock:
+        if _background_process_running:
+            elapsed = ""
+            if _background_process_start_time:
+                elapsed_sec = (datetime.now() - _background_process_start_time).total_seconds()
+                elapsed = f"（経過時間: {int(elapsed_sec)}秒）"
+            return jsonify({
+                'success': False,
+                'error': f'別の処理が実行中です: {_background_process_type}{elapsed}'
+            }), 409
+        
+        # ロックを取得
+        _background_process_running = True
+        _background_process_type = "指定解析"
+        _background_process_start_time = datetime.now()
+    
     scraping_url = os.environ.get('SCRAPING_BASE_URL')
     discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
     if not scraping_url:
+        # ロック解除
+        with _background_process_lock:
+            _background_process_running = False
+            _background_process_type = None
+            _background_process_start_time = None
         return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
     
     ids_arg = ','.join(str(i) for i in ids)
@@ -636,6 +734,7 @@ def api_admin_trigger_analysis_only():
             app.logger.warning(f"開始通知の送信に失敗しました: {e}")
     
     def run_analysis_only():
+        global _background_process_running, _background_process_type, _background_process_start_time
         try:
             env = build_scraper_subprocess_env()
             cmd = [
@@ -661,6 +760,12 @@ def api_admin_trigger_analysis_only():
                 app.logger.info(f"Analysis-only run completed: {result.stdout[-500:]}")
         except Exception as e:
             app.logger.error(f"Analysis-only run error: {e}")
+        finally:
+            # 処理完了後にロック解除
+            with _background_process_lock:
+                _background_process_running = False
+                _background_process_type = None
+                _background_process_start_time = None
     
     thread = threading.Thread(target=run_analysis_only, daemon=True)
     thread.start()
