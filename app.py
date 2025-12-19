@@ -542,18 +542,9 @@ def api_admin_trigger_full_scrape():
                 if discord_webhook_url:
                     cmd.extend(['--discord-webhook', discord_webhook_url])
                 
-                result = subprocess.run(
-                    cmd,
-                    cwd=str(PROJECT_ROOT),
-                    capture_output=True,
-                    text=True,
-                    env=env
-                )
+                # リアルタイムログ出力を使用
+                run_command_with_realtime_logging(cmd, env, str(PROJECT_ROOT), output_prefix="FullScrape")
                 
-                if result.returncode != 0:
-                    app.logger.error(f"Full scrape failed: {result.stderr}")
-                else:
-                    app.logger.info(f"Full scrape completed: {result.stdout[-500:]}")
             except Exception as e:
                 app.logger.error(f"Full scrape error: {e}")
             finally:
@@ -650,17 +641,10 @@ def api_admin_trigger_partial_scrape():
             ]
             if discord_webhook_url:
                 cmd.extend(['--discord-webhook', discord_webhook_url])
-            result = subprocess.run(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                env=env
-            )
-            if result.returncode != 0:
-                app.logger.error(f"Partial scrape failed: {result.stderr}")
-            else:
-                app.logger.info(f"Partial scrape completed: {result.stdout[-500:]}")
+            
+            # リアルタイムログ出力を使用
+            run_command_with_realtime_logging(cmd, env, str(PROJECT_ROOT), output_prefix="PartialScrape")
+
         except Exception as e:
             app.logger.error(f"Partial scrape error: {e}")
         finally:
@@ -747,17 +731,10 @@ def api_admin_trigger_analysis_only():
             ]
             if discord_webhook_url:
                 cmd.extend(['--discord-webhook', discord_webhook_url])
-            result = subprocess.run(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                env=env
-            )
-            if result.returncode != 0:
-                app.logger.error(f"Analysis-only run failed: {result.stderr}")
-            else:
-                app.logger.info(f"Analysis-only run completed: {result.stdout[-500:]}")
+            
+            # リアルタイムログ出力を使用
+            run_command_with_realtime_logging(cmd, env, str(PROJECT_ROOT), output_prefix="AnalysisOnly")
+            
         except Exception as e:
             app.logger.error(f"Analysis-only run error: {e}")
         finally:

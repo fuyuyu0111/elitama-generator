@@ -17,20 +17,38 @@ from pathlib import Path
 import argparse
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
+from itertools import cycle
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
 # --- プロジェクトルート設定 ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+import sys
+sys.path.append(str(PROJECT_ROOT))
 
 # --- 環境変数読み込み ---
 load_dotenv(dotenv_path=PROJECT_ROOT / '.env')
 
 # --- 環境変数 ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-# 本番実行時は別のAPIキーを使用
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY_2") or os.getenv("GEMINI_API_KEY_1")
+
+# 複数のAPIキーを読み込み（ロードバランシング用）
+API_KEYS = []
+for i in range(1, 5):  # 1 to 4
+    key = os.getenv(f"GEMINI_API_KEY_{i}")
+    if key:
+        API_KEYS.append(key)
+
+if not API_KEYS:
+    # フォールバック
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        API_KEYS.append(key)
+
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+
+from scripts.utils.discord_notifier import DiscordNotifier
 
 # --- 定数 ---
 SOURCE_TABLE_ALIEN = "alien"
@@ -42,17 +60,35 @@ S_SKILL_EFFECT_DICT_PATH = PROJECT_ROOT / "analysis" / "prompts" / "s_skill_effe
 BACKUP_DIR = PROJECT_ROOT / "backups" / "stage1"
 
 # --- LLMとレート制限の設定 ---
-MODEL_NAME = "gemini-2.5-flash"
-# Gemini 2.5 Flash Free Tier (2025年12月時点):
-#   - RPM: 5 req/分
-#   - TPM: 250,000 tokens/分
-#   - RPD: ~20 req/日 (大幅削減)
-# RPM 5対応: 60秒÷5=12秒、マージン込みで12.5秒間隔
-ACTUAL_INTERVAL = 12.5  # 秒
+# ユーザー情報: 最新は gemini-3-flash
+MODEL_NAME = "gemini-3.0-flash" 
+# フォールバック用: 1世代前(2.5-flash)を使用
+MODELS_TO_TRY = [MODEL_NAME, "gemini-2.5-flash"]
 
-print(f"レート制限設定:")
+# 4つのAPIキーで分散。RPM制限が厳しい(15req/min)場合、
+# 1キーあたり4秒間隔が必要。4キーで1秒間隔まで短縮可能だが、安全マージンを取る。
+ACTUAL_INTERVAL = 3.0  # 秒 (RPM 20相当)
+
+print(f"レート制限設定 (マルチキーモード):")
 print(f"  モデル: {MODEL_NAME}")
-print(f"  リクエスト間隔: {ACTUAL_INTERVAL:.1f}秒")
+print(f"  有効なAPIキー数: {len(API_KEYS)}")
+print(f"  リクエスト間隔: {ACTUAL_INTERVAL:.1f}秒") 
+
+class ClientManager:
+    def __init__(self, api_keys: List[str]):
+        if not api_keys:
+            raise ValueError("有効なAPIキーがありません。.envを確認してください。")
+        self.clients = [genai.Client(api_key=k) for k in api_keys]
+        self.client_cycle = cycle(self.clients)
+        self.total_clients = len(self.clients)
+        print(f"  {self.total_clients}個のクライアントを初期化しました。ラウンドロビンで使用します。")
+
+    def get_next_client(self) -> genai.Client:
+        return next(self.client_cycle)
+
+# グローバルなクライアントマネージャ（後で初期化）
+client_manager = None
+
 print(f"  想定スループット: {60.0 / ACTUAL_INTERVAL:.1f} req/分")
 print(f"  レート制限: TPM 250,000 tokens/分、RPM 5 req/分、RPD ~20 req/日")
 
@@ -533,30 +569,45 @@ def fetch_s_skill_texts_from_db(conn, limit: Optional[int] = None, offset: int =
 
 
 # --- LLM API呼び出し ---
-def call_gemini_sync(client: genai.Client, model_name: str, prompt: str, count_tokens: bool = False) -> Tuple[Optional[str], Optional[int], Optional[float]]:
+# --- LLM API呼び出し ---
+def call_gemini_sync(client: Any, model_name: str, prompt: str, count_tokens: bool = False) -> Tuple[Optional[str], Optional[int], Optional[float]]:
     """
     Gemini APIを同期で呼び出す (google-genai SDK)
+    マルチキー対応: 429エラー時は即座に次のクライアントに切り替えてリトライ
     
     Returns:
         (response_text, token_count, retry_after_seconds)
     """
-    max_retries = 3
+    # ローテーション上限（キー数 x 3周 分くらい試行）
+    max_rotation_retries = 12
+    if client_manager:
+        max_rotation_retries = client_manager.total_clients * 3
+    
     base_delay = 2.0
 
-    for attempt in range(max_retries + 1):
+    for attempt in range(max_rotation_retries):
+        # クライアント決定
+        current_client = client
+        if client_manager:
+            current_client = client_manager.get_next_client()
+
         try:
-            response = client.models.generate_content(
-                model=model_name,
+            # モデル名がリストの場合はフォールバック対応（現在は単一固定）
+            target_model = model_name
+            
+            response = current_client.models.generate_content(
+                model=target_model,
                 contents=prompt,
                 config=GEN_CONFIG
             )
+            
             if not response or not hasattr(response, "text") or not response.text:
-                print("\n    警告: Gemini APIからの応答が空です。レート制限の可能性があります。")
-                return None, None, None
+                # 空レスポンスは429扱いで次へ
+                print(f"    警告: 空の応答 -> キー切り替え ({attempt+1}/{max_rotation_retries})")
+                continue
             
             token_count = None
             if count_tokens:
-                # 入力トークン数を取得
                 try:
                     usage_metadata = response.usage_metadata
                     if usage_metadata:
@@ -572,29 +623,24 @@ def call_gemini_sync(client: genai.Client, model_name: str, prompt: str, count_t
             
             # 429エラー (レート制限)
             if "429" in error_str or "ResourceExhausted" in error_class:
-                retry_after = 60.0
-                match = re.search(r'Please retry in ([\d.]+)s', error_str)
-                if match:
-                    retry_after = float(match.group(1))
-                    print(f"\n    レート制限エラー: {retry_after:.1f}秒後にリトライ可能")
-                else:
-                    print(f"\n    レート制限エラー: 60秒後にリトライ可能（retry_delayの抽出に失敗）")
-                return None, None, retry_after
+                # 安全のため少し待機してから次のキーへ
+                time.sleep(1.0)
+                # print(f"    レート制限(429) -> キー切り替え ({attempt+1}/{max_rotation_retries})")
+                continue
 
-            # 503エラー (一時的なサーバー過負荷) などリトライ可能なエラー
+            # 503エラー (一時的なサーバー過負荷)
             if "503" in error_str or "ServiceUnavailable" in error_class or "InternalServerError" in error_class:
-                if attempt < max_retries:
-                    delay = base_delay * (2 ** attempt)
-                    print(f"\n    サーバーエラー ({error_class})。{delay}秒後にリトライします... ({attempt + 1}/{max_retries})")
-                    time.sleep(delay)
-                    continue
-                else:
-                    print(f"\n    サーバーエラーが続いたため諦めます: {error_str}")
-            else:
-                print(f"\n    Gemini API呼び出しエラー: {error_class}: {e}")
+                print(f"    サーバーエラー({error_class}) -> 1秒待機してキー切り替え")
+                time.sleep(1.0)
+                continue
             
-            # リトライ不能または回数切れ
+            print(f"    Gemini API呼び出しエラー: {error_class}: {e}")
+            # その他のエラーは即終了（プロンプトの問題などの可能性）
             return None, None, None
+            
+    # 全試行失敗
+    print(f"    エラー: 全てのAPIキーでリトライしましたが失敗しました。")
+    return None, None, 60.0  # 呼び出し元で待機させるためのダミー値
 
 
 # --- 応答パース ---
@@ -1237,21 +1283,58 @@ async def process_skill_texts_parallel(
         # リクエスト送信
         print(f"[バッチ {batch_idx + 1}/{total_batches}] {skill_type_name}テキスト {batch_start}～{batch_end} を送信...")
         
-        # 同期API呼び出し
-        result = call_gemini_sync(client, model_name, prompt, count_tokens)
-        raw_response = result[0]
-        token_count = result[1]
-        retry_after = result[2] if len(result) > 2 else None
+        # 同期API呼び出し (最大2回リトライ)
+        max_retries = 2
+        retry_count = 0
         
-        # 429エラーの場合
-        if retry_after is not None and retry_after > 0:
-            print(f"    レート制限エラー: {retry_after:.1f}秒待機後にリトライ")
-            time.sleep(retry_after + 5)  # 指定時間 + 余裕
-            
-            # リトライ
+        while retry_count <= max_retries:
             result = call_gemini_sync(client, model_name, prompt, count_tokens)
             raw_response = result[0]
             token_count = result[1]
+            retry_after = result[2] if len(result) > 2 else None
+            
+            # 成功した場合
+            if raw_response:
+                break
+                
+            # 429エラーの場合
+            if retry_after is not None and retry_after > 0:
+                retry_count += 1
+                if retry_count > max_retries:
+                    err_msg = f"レート制限リトライ回数上限({max_retries}回)を超えました。タスクを中止します。"
+                    print(f"    エラー: {err_msg}")
+                    
+                    # Discord通知
+                    if DISCORD_WEBHOOK_URL:
+                        try:
+                            notifier = DiscordNotifier(DISCORD_WEBHOOK_URL)
+                            notifier.send_error(
+                                f"解析タスク エラー停止: レート制限リトライ上限超過",
+                                error_message=err_msg,
+                                details={
+                                    "Batch": f"{batch_idx + 1}/{total_batches}",
+                                    "RetryCount": retry_count,
+                                    "RetryAfter": f"{retry_after:.1f}s"
+                                }
+                            )
+                        except Exception:
+                            pass
+                    
+                    # 処理を中断（例外を投げるか、returnで終了）
+                    # ここでは呼び出し元に伝わるようにreturnするが、本当は例外の方が良いかも
+                    # 簡易的に残りのバッチを全て失敗として扱う
+                    failed_skills.extend(batch)
+                    remaining = total_skills - (batch_idx * BATCH_SIZE) - len(batch) # 概算
+                    print(f"    残りの {remaining} 件の処理をスキップします。")
+                    return all_rows, failed_skills, total_tokens
+
+                print(f"    レート制限エラー: {retry_after:.1f}秒待機後にリトライ ({retry_count}/{max_retries})")
+                time.sleep(retry_after + 5)  # 指定時間 + 余裕
+                continue
+            
+            # その他のエラーでレスポンスがない場合
+            break
+
         
         if raw_response:
             # トークンカウント
@@ -1323,19 +1406,50 @@ def process_skill_texts_sequential_with_check(
         
         # API呼び出し
         try:
-            result = call_gemini_sync(client, model_name, prompt, count_tokens)
-            raw_response = result[0]
-            token_count = result[1]
-            retry_after = result[2] if len(result) > 2 else None
+            # API呼び出し (最大2回リトライ)
+            max_retries = 2
+            retry_count = 0
             
-            # 429エラー
-            if retry_after is not None and retry_after > 0:
-                print(f"  レート制限: {retry_after:.1f}秒待機...")
-                time.sleep(retry_after + interval)
-                # リトライ
+            while retry_count <= max_retries:
                 result = call_gemini_sync(client, model_name, prompt, count_tokens)
                 raw_response = result[0]
                 token_count = result[1]
+                retry_after = result[2] if len(result) > 2 else None
+                
+                if raw_response:
+                    break
+                
+                # 429エラー
+                if retry_after is not None and retry_after > 0:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        err_msg = f"レート制限リトライ回数上限({max_retries}回)を超えました。逐次解析タスクを中止します。"
+                        print(f"  エラー: {err_msg}")
+                        
+                        # Discord通知
+                        if DISCORD_WEBHOOK_URL:
+                            try:
+                                notifier = DiscordNotifier(DISCORD_WEBHOOK_URL)
+                                notifier.send_error(
+                                    f"逐次解析タスク エラー停止: レート制限リトライ上限超過",
+                                    error_message=err_msg,
+                                    details={
+                                        "Index": f"{index + 1}/{total_skills}",
+                                        "RetryCount": retry_count,
+                                        "RetryAfter": f"{retry_after:.1f}s"
+                                    }
+                                )
+                            except Exception:
+                                pass
+                        
+                        return all_rows, failed_skills_initial, total_tokens if total_tokens > 0 else None
+
+                    print(f"  レート制限: {retry_after:.1f}秒待機... ({retry_count}/{max_retries})")
+                    time.sleep(retry_after + interval)
+                    continue
+                
+                # その他のエラーでレスポンスがない場合
+                break
                 
             if token_count is not None:
                 total_tokens += token_count
@@ -1586,18 +1700,32 @@ def main():
     """メイン処理"""
     args = parse_args()
 
-    # APIキー取得
-    # --unanalyzed-only の場合はテスト用APIキーを優先、なければ本番用APIキーを使用
-    # それ以外は本番用APIキーを優先、なければテスト用APIキーを使用
-    if args.unanalyzed_only:
-        api_key = os.getenv("GEMINI_API_KEY_1") or os.getenv("GEMINI_API_KEY_2")
-        if not api_key:
-            raise RuntimeError("APIキーが環境変数 GEMINI_API_KEY_1 または GEMINI_API_KEY_2 に設定されていません。")
+    # ClientManagerの初期化（マルチキーローテーション）
+    global client_manager
+    if API_KEYS:
+        try:
+            client_manager = ClientManager(API_KEYS)
+        except Exception as e:
+            print(f"警告: ClientManagerの初期化に失敗しました: {e}")
+            client_manager = None
+
+    # 単一クライアント生成（後方互換性およびフォールバック用）
+    # --unanalyzed-only の場合はテスト用APIキーを優先したかったが、
+    # マルチキーモードでは全リソースを活用するため区別しない方針とする。
+    # API_KEYSがある場合はその先頭、なければ個別に取得を試みる。
+    api_key = None
+    if API_KEYS:
+        api_key = API_KEYS[0]
     else:
-        # 本番実行時は別のAPIキーを使用
-        api_key = os.getenv("GEMINI_API_KEY_2") or os.getenv("GEMINI_API_KEY_1")
-        if not api_key:
-            raise RuntimeError("APIキーが環境変数 GEMINI_API_KEY_2 または GEMINI_API_KEY_1 に設定されていません。")
+        # 従来のロジック
+        if args.unanalyzed_only:
+            api_key = os.getenv("GEMINI_API_KEY_1") or os.getenv("GEMINI_API_KEY_2")
+        else:
+            api_key = os.getenv("GEMINI_API_KEY_2") or os.getenv("GEMINI_API_KEY_1")
+            
+    if not api_key:
+         raise RuntimeError("APIキーが見つかりません。環境変数を確認してください。")
+
     client = genai.Client(api_key=api_key)
 
     # モデル設定
