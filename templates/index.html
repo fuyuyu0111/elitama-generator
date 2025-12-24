@@ -11,8 +11,8 @@
     <meta name="google-site-verification" content="rN0Cu7smvs0R4SD-s216F1z3JjXi0aG3WSrqoGzEkeU" />
     <meta name="theme-color" content="#0f172a">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" type="image/png" href="/static/main_icon.png">
-    <link rel="apple-touch-icon" href="/static/main_icon.png">
+    <link rel="icon" type="image/png" href="/static/main_icon.webp">
+    <link rel="apple-touch-icon" href="/static/main_icon.webp">
 
     <style>
         /* ==========================================================================
@@ -2079,7 +2079,7 @@
             </div>
             <div class="header-title-container">
                 <span id="header-title">エリジェネ</span>
-                <img src="/static/main_icon.png" alt="エリジェネアイコン" class="header-title-icon">
+                <img src="/static/main_icon.webp" alt="エリジェネアイコン" class="header-title-icon">
             </div>
             <div class="header-help-container">
                 <button id="help-button" class="header-button">？</button>
@@ -2473,13 +2473,13 @@
             iconTypes.forEach(type => {
                 document.querySelectorAll(`[data-info-${type}]`).forEach(el => {
                     const val = el.dataset[`info${type}`];
-                    if (val && val !== 'None') iconFiles.add(`/static/icon/${type}${val}.png`);
+                    if (val && val !== 'None') iconFiles.add(`/static/icon/${type}${val}.webp`);
                 });
             });
             for (let i = 1; i <= 4; i++) {
                 document.querySelectorAll(`[data-info-e${i}]`).forEach(el => {
                     const val = el.dataset[`infoE${i}`];
-                    if (val && val !== 'None') iconFiles.add(`/static/icon/e${val}.png`);
+                    if (val && val !== 'None') iconFiles.add(`/static/icon/e${val}.webp`);
                 });
             }
             const iconImages = Array.from(iconFiles);
@@ -3153,11 +3153,11 @@
                     img = existingImg.cloneNode(false);
                 } else {
                     img = document.createElement('img');
-                    img.src = `/static/images/${alienId}.png`;
+                    img.src = `/static/images/${alienId}.webp`;
                 }
             } else {
                 img = document.createElement('img');
-                img.src = `/static/images/${alienId}.png`;
+                img.src = `/static/images/${alienId}.webp`;
             }
             if (className) img.className = className;
             if (alt) img.alt = alt;
@@ -3171,14 +3171,14 @@
          */
         function createIconImageElement(iconName, style = '') {
             // 既存のDOMから該当するアイコン画像を検索
-            const existingIcon = document.querySelector(`img[src="/static/icon/${iconName}.png"]`);
+            const existingIcon = document.querySelector(`img[src="/static/icon/${iconName}.webp"]`);
             let img;
             if (existingIcon && existingIcon.complete) {
                 // 既に読み込まれている画像をクローン
                 img = existingIcon.cloneNode(false);
             } else {
                 img = document.createElement('img');
-                img.src = `/static/icon/${iconName}.png`;
+                img.src = `/static/icon/${iconName}.webp`;
             }
             if (style) {
                 img.setAttribute('style', style);
@@ -3330,23 +3330,23 @@
                 // こうげき/所属（未編成時も同じ構造で表示）
                 let attackHtml = '';
                 if (isOccupied) {
-                    if (alienData.attack_range) attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.attack_range}.png">`;
-                    if (alienData.attack_area) attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.attack_area}.png">`;
-                    if (alienData.affiliation) attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.affiliation}.png">`;
+                    if (alienData.attack_range) attackHtml += `<img class="info-icon" src="/static/icon/d${alienData.attack_range}.webp">`;
+                    if (alienData.attack_area) attackHtml += `<img class="info-icon" src="/static/icon/c${alienData.attack_area}.webp">`;
+                    if (alienData.affiliation) attackHtml += `<img class="info-icon" src="/static/icon/b${alienData.affiliation}.webp">`;
                 }
 
                 // タイプ（未編成時も同じ構造で表示）
                 let typeHtml = '';
                 if (isOccupied) {
                     if (alienData.role) {
-                        typeHtml += `<img class="info-icon" src="/static/icon/f${alienData.role}.png">`;
+                        typeHtml += `<img class="info-icon" src="/static/icon/f${alienData.role}.webp">`;
                     } else {
                         typeHtml += `<div class="icon-placeholder-small"></div>`;
                     }
                     for (let j = 1; j <= 4; j++) {
                         const typeValue = alienData[`type_${j}`];
                         if (typeValue) {
-                            typeHtml += `<img class="info-icon" src="/static/icon/e${typeValue}.png">`;
+                            typeHtml += `<img class="info-icon" src="/static/icon/e${typeValue}.webp">`;
                         }
                     }
                 }
@@ -3522,7 +3522,7 @@
 
             // ゴースト作成（ミニアイコンサイズ）
             const ghost = document.createElement('img');
-            ghost.src = `/static/images/${member.id}.png`;
+            ghost.src = `/static/images/${member.id}.webp`;
             ghost.className = 'preview-drag-ghost';
             ghost.style.position = 'fixed';
             ghost.style.zIndex = 9999;
@@ -3759,7 +3759,7 @@
             if (!member) return;
 
             const ghost = document.createElement('img');
-            ghost.src = `/static/images/${member.id}.png`;
+            ghost.src = `/static/images/${member.id}.webp`;
             ghost.className = 'drag-ghost-img';
             ghost.style.position = 'fixed';
             ghost.style.zIndex = 9999;
@@ -4045,7 +4045,7 @@
          */
         function createRequirementIcon(type, value, count, isMet, is_not = false) {
             const iconName = `${type}${value}`; // value に '!' は含まれていない
-            const iconUrl = `/static/icon/${iconName}.png`;
+            const iconUrl = `/static/icon/${iconName}.webp`;
             const metClass = isMet ? 'met' : 'unmet';
 
             // ！！！ (新) 「以外」の場合、style属性で上下反転 ！！！
@@ -4419,7 +4419,7 @@
                     btn.className = 'filter-button selected';
                     btn.dataset.key = key;
                     btn.dataset.value = val;
-                    btn.innerHTML = `<img src="/static/icon/${config.prefix}${val}.png">`;
+                    btn.innerHTML = `<img src="/static/icon/${config.prefix}${val}.webp">`;
                     optionsDiv.appendChild(btn);
                     optionButtons.push(btn);
                 });
@@ -5498,23 +5498,23 @@
                     const [category, val] = value.split(':');
                     // 属性
                     if (category === 'a' && ['1', '2', '3', '4'].includes(val)) {
-                        return `/static/icon/a${val}.png`;
+                        return `/static/icon/a${val}.webp`;
                     }
                     // 所属
                     if (category === 'b' && ['1', '2', '3', '4', '5'].includes(val)) {
-                        return `/static/icon/b${val}.png`;
+                        return `/static/icon/b${val}.webp`;
                     }
                     // 攻撃はんい
                     if (category === 'c' && ['1', '2'].includes(val)) {
-                        return `/static/icon/c${val}.png`;
+                        return `/static/icon/c${val}.webp`;
                     }
                     // 攻撃距離
                     if (category === 'd' && ['1', '2', '3'].includes(val)) {
-                        return `/static/icon/d${val}.png`;
+                        return `/static/icon/d${val}.webp`;
                     }
                     // ロール
                     if (category === 'f' && ['1', '2', '3', '4'].includes(val)) {
-                        return `/static/icon/f${val}.png`;
+                        return `/static/icon/f${val}.webp`;
                     }
                     return null;
                 }
@@ -7055,7 +7055,7 @@
                     ${['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].map(v => `
                         <button type="button" onclick="${codeSelectCallback}('e', '${v}')" 
                                 style="padding: 0.6vh; background-color: ${selectedTargets.includes(`e:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                            <img src="/static/icon/e${v}.png" style="width: 3vh; height: 3vh;">
+                            <img src="/static/icon/e${v}.webp" style="width: 3vh; height: 3vh;">
                         </button>
                     `).join('')}
                 </div>
@@ -7082,7 +7082,7 @@
                             ${[1, 2, 3, 4].map(v => `
                                 <button type="button" onclick="${codeSelectCallback}('a', '${v}')" 
                                         style="padding: 0.5vh; background-color: ${selectedTargets.includes(`a:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                    <img src="/static/icon/a${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                    <img src="/static/icon/a${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                 </button>
                             `).join('')}
                         </div>
@@ -7093,7 +7093,7 @@
                             ${[1, 2, 3, 4, 5].map(v => `
                                 <button type="button" onclick="${codeSelectCallback}('b', '${v}')" 
                                         style="padding: 0.5vh; background-color: ${selectedTargets.includes(`b:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                    <img src="/static/icon/b${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                    <img src="/static/icon/b${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                 </button>
                             `).join('')}
                         </div>
@@ -7104,7 +7104,7 @@
                             ${[1, 2].map(v => `
                                 <button type="button" onclick="${codeSelectCallback}('c', '${v}')" 
                                         style="padding: 0.5vh; background-color: ${selectedTargets.includes(`c:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                    <img src="/static/icon/c${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                    <img src="/static/icon/c${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                 </button>
                             `).join('')}
                         </div>
@@ -7115,7 +7115,7 @@
                             ${[1, 2, 3].map(v => `
                                 <button type="button" onclick="${codeSelectCallback}('d', '${v}')" 
                                         style="padding: 0.5vh; background-color: ${selectedTargets.includes(`d:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                    <img src="/static/icon/d${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                    <img src="/static/icon/d${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                 </button>
                             `).join('')}
                         </div>
@@ -7127,7 +7127,7 @@
                             ${['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].map(v => `
                                 <button type="button" onclick="${codeSelectCallback}('e', '${v}')" 
                                         style="padding: 0.5vh; background-color: ${selectedTargets.includes(`e:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                    <img src="/static/icon/e${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                    <img src="/static/icon/e${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                 </button>
                             `).join('')}
                         </div>
@@ -8577,7 +8577,7 @@
             }
 
             // エイリアンのアイコンパスと説明文を取得
-            const alienIconPath = `/static/images/${alienData.id}.png`;
+            const alienIconPath = `/static/images/${alienData.id}.webp`;
             const skillText1 = alienData.skill_text1 || 'なし';
             const skillText2 = alienData.skill_text2 || 'なし';
             const skillText3 = alienData.skill_text3 || 'なし';
@@ -8890,7 +8890,7 @@
                     // コード形式の場合はアイコン表示
                     const [cat, val] = part.split(':');
                     if (cat && val) {
-                        const iconUrl = `/static/icon/${cat}${val}.png`;
+                        const iconUrl = `/static/icon/${cat}${val}.webp`;
                         return `<span style="display: inline-flex; align-items: center; margin-right: 0.3vh;">
                         <img src="${iconUrl}" style="width: 1.5vh; height: 1.5vh; margin-right: 0.2vh;" onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0'">
                     </span>`;
@@ -8938,7 +8938,7 @@
                         const [type, value] = reqValue.split(':');
                         if (!type || !value) return '';
                         const iconName = `${type}${value}`;
-                        const iconUrl = `/static/icon/${iconName}.png`;
+                        const iconUrl = `/static/icon/${iconName}.webp`;
                         const notStyle = isNot ? 'transform: scaleY(-1);' : '';
                         const countHtml = reqCount > 1 ? `<span style="position: absolute; top: -0.3vh; right: -0.3vh; background-color: var(--accent-green); color: var(--dark-bg); border-radius: 50%; width: 1.2vh; height: 1.2vh; display: flex; align-items: center; justify-content: center; font-size: 1vh; font-weight: bold;">${reqCount}</span>` : '';
                         return `<span style="display: inline-flex; align-items: center; position: relative; margin-right: 0.3vh;">
@@ -9159,7 +9159,7 @@
                             } else {
                                 const [cat, val] = target.split(':');
                                 if (cat && val) {
-                                    const iconUrl = `/static/icon/${cat}${val}.png`;
+                                    const iconUrl = `/static/icon/${cat}${val}.webp`;
                                     targetContainer.innerHTML += `<span style="display: inline-flex; align-items: center; background-color: #2a4a5a; padding: 0.2vh 0.5vh; border-radius: 0.2vh; margin-right: 0.3vh;">
                                     <img src="${iconUrl}" style="width: 1.5vh; height: 1.5vh; margin-right: 0.2vh;" onerror="this.style.display='none'">
                                     <span style="font-size: 1.2vh;">${target}</span>
@@ -9187,7 +9187,7 @@
                             } else {
                                 const [cat, val] = target.split(':');
                                 if (cat && val) {
-                                    const iconUrl = `/static/icon/${cat}${val}.png`;
+                                    const iconUrl = `/static/icon/${cat}${val}.webp`;
                                     conditionTargetContainer.innerHTML += `<span style="display: inline-flex; align-items: center; background-color: #2a4a5a; padding: 0.2vh 0.5vh; border-radius: 0.2vh; margin-right: 0.3vh;">
                                     <img src="${iconUrl}" style="width: 1.5vh; height: 1.5vh; margin-right: 0.2vh;" onerror="this.style.display='none'">
                                     <span style="font-size: 1.2vh;">${target}</span>
@@ -9323,7 +9323,7 @@
                                     ${[1, 2, 3, 4].map(v => `
                                         <button type="button" onclick="tempSelectConditionTargetCode('a', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`a:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/a${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/a${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -9334,7 +9334,7 @@
                                     ${[1, 2, 3, 4, 5].map(v => `
                                         <button type="button" onclick="tempSelectConditionTargetCode('b', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`b:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/b${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/b${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -9345,7 +9345,7 @@
                                     ${[1, 2].map(v => `
                                         <button type="button" onclick="tempSelectConditionTargetCode('c', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`c:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/c${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/c${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -9356,7 +9356,7 @@
                                     ${[1, 2, 3].map(v => `
                                         <button type="button" onclick="tempSelectConditionTargetCode('d', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`d:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/d${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/d${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -9422,7 +9422,7 @@
                     } else {
                         newSlotSelectedRequirements.forEach(req => {
                             const iconName = `${req.type}${req.value}`;
-                            const iconUrl = `/static/icon/${iconName}.png`;
+                            const iconUrl = `/static/icon/${iconName}.webp`;
                             const notStyle = req.is_not ? 'transform: scaleY(-1);' : '';
                             const countHtml = newSlotRequirementCount > 1 ? `<span style="position: absolute; top: -0.3vh; right: -0.3vh; background-color: var(--accent-green); color: var(--dark-bg); border-radius: 50%; width: 1.2vh; height: 1.2vh; display: flex; align-items: center; justify-content: center; font-size: 1vh; font-weight: bold;">${newSlotRequirementCount}</span>` : '';
                             requirementContainer.innerHTML += `<span style="display: inline-flex; align-items: center; position: relative; background-color: #2a4a5a; padding: 0.2vh 0.5vh; border-radius: 0.2vh; margin-right: 0.3vh;">
@@ -9452,7 +9452,7 @@
                         return `
                                             <button type="button" onclick="tempSelectRequirementCode('a', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/a${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/a${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -9466,7 +9466,7 @@
                         return `
                                             <button type="button" onclick="tempSelectRequirementCode('b', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/b${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/b${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -9480,7 +9480,7 @@
                         return `
                                             <button type="button" onclick="tempSelectRequirementCode('c', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/c${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/c${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -9494,7 +9494,7 @@
                         return `
                                             <button type="button" onclick="tempSelectRequirementCode('d', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/d${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/d${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -9509,7 +9509,7 @@
                         return `
                                         <button type="button" onclick="tempSelectRequirementCode('e', '${v}')" 
                                                 style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                            <img src="/static/icon/e${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                            <img src="/static/icon/e${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                         </button>
                                     `;
                     }).join('')}
@@ -9937,7 +9937,7 @@
                             } else {
                                 const [cat, val] = target.split(':');
                                 if (cat && val) {
-                                    const iconUrl = `/static/icon/${cat}${val}.png`;
+                                    const iconUrl = `/static/icon/${cat}${val}.webp`;
                                     targetContainer.innerHTML += `<span style="display: inline-flex; align-items: center; background-color: #2a4a5a; padding: 0.2vh 0.5vh; border-radius: 0.2vh; margin-right: 0.3vh;">
                                     <img src="${iconUrl}" style="width: 1.5vh; height: 1.5vh; margin-right: 0.2vh;" onerror="this.style.display='none'">
                                     <span style="font-size: 1.2vh;">${target}</span>
@@ -9965,7 +9965,7 @@
                             } else {
                                 const [cat, val] = target.split(':');
                                 if (cat && val) {
-                                    const iconUrl = `/static/icon/${cat}${val}.png`;
+                                    const iconUrl = `/static/icon/${cat}${val}.webp`;
                                     conditionTargetContainer.innerHTML += `<span style="display: inline-flex; align-items: center; background-color: #2a4a5a; padding: 0.2vh 0.5vh; border-radius: 0.2vh; margin-right: 0.3vh;">
                                     <img src="${iconUrl}" style="width: 1.5vh; height: 1.5vh; margin-right: 0.2vh;" onerror="this.style.display='none'">
                                     <span style="font-size: 1.2vh;">${target}</span>
@@ -9987,7 +9987,7 @@
                     } else {
                         editSlotSelectedRequirements.forEach(req => {
                             const iconName = `${req.type}${req.value}`;
-                            const iconUrl = `/static/icon/${iconName}.png`;
+                            const iconUrl = `/static/icon/${iconName}.webp`;
                             const notStyle = req.is_not ? 'transform: scaleY(-1);' : '';
                             const countHtml = editSlotRequirementCount > 1 ? `<span style="position: absolute; top: -0.3vh; right: -0.3vh; background-color: var(--accent-green); color: var(--dark-bg); border-radius: 50%; width: 1.2vh; height: 1.2vh; display: flex; align-items: center; justify-content: center; font-size: 1vh; font-weight: bold;">${editSlotRequirementCount}</span>` : '';
                             requirementContainer.innerHTML += `<span style="display: inline-flex; align-items: center; position: relative; background-color: #2a4a5a; padding: 0.2vh 0.5vh; border-radius: 0.2vh; margin-right: 0.3vh;">
@@ -10123,7 +10123,7 @@
                                     ${[1, 2, 3, 4].map(v => `
                                         <button type="button" onclick="tempEditSelectConditionTargetCode('a', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`a:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/a${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/a${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -10134,7 +10134,7 @@
                                     ${[1, 2, 3, 4, 5].map(v => `
                                         <button type="button" onclick="tempEditSelectConditionTargetCode('b', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`b:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/b${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/b${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -10145,7 +10145,7 @@
                                     ${[1, 2].map(v => `
                                         <button type="button" onclick="tempEditSelectConditionTargetCode('c', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`c:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/c${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/c${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -10156,7 +10156,7 @@
                                     ${[1, 2, 3].map(v => `
                                         <button type="button" onclick="tempEditSelectConditionTargetCode('d', '${v}')" 
                                                 style="padding: 0.6vh; background-color: ${tempSelectedConditionTargets.includes(`d:${v}`) ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh;">
-                                            <img src="/static/icon/d${v}.png" style="width: 3vh; height: 3vh;">
+                                            <img src="/static/icon/d${v}.webp" style="width: 3vh; height: 3vh;">
                                         </button>
                                     `).join('')}
                                 </div>
@@ -10231,7 +10231,7 @@
                         return `
                                             <button type="button" onclick="tempEditSelectRequirementCode('a', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/a${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/a${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -10245,7 +10245,7 @@
                         return `
                                             <button type="button" onclick="tempEditSelectRequirementCode('b', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/b${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/b${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -10259,7 +10259,7 @@
                         return `
                                             <button type="button" onclick="tempEditSelectRequirementCode('c', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/c${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/c${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -10273,7 +10273,7 @@
                         return `
                                             <button type="button" onclick="tempEditSelectRequirementCode('d', '${v}')" 
                                                     style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                                <img src="/static/icon/d${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                                <img src="/static/icon/d${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                             </button>
                                         `;
                     }).join('')}
@@ -10288,7 +10288,7 @@
                         return `
                                         <button type="button" onclick="tempEditSelectRequirementCode('e', '${v}')" 
                                                 style="padding: 0.5vh; background-color: ${isSelected ? 'var(--accent-green)' : '#1a2a3a'}; border: 1px solid #4a5a6a; border-radius: 0.3vh; position: relative;">
-                                            <img src="/static/icon/e${v}.png" style="width: 2.5vh; height: 2.5vh;">
+                                            <img src="/static/icon/e${v}.webp" style="width: 2.5vh; height: 2.5vh;">
                                         </button>
                                     `;
                     }).join('')}

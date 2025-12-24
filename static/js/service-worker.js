@@ -1,8 +1,8 @@
-const CACHE_NAME = 'alien-egg-cache-v1';
+const CACHE_NAME = 'alien-egg-cache-v2';
 const CORE_ASSETS = [
   '/',
   '/static/manifest.json',
-  '/static/main_icon.png'
+  '/static/main_icon.webp'
 ];
 
 self.addEventListener('install', (event) => {
@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
       return fetch(event.request).then((response) => {
         const clonedResponse = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, clonedResponse).catch(() => {});
+          cache.put(event.request, clonedResponse).catch(() => { });
         });
         return response;
       }).catch(() => cached);

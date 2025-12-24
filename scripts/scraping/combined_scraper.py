@@ -9,9 +9,11 @@ import time
 import requests
 import psycopg2
 import argparse
+from io import BytesIO
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, parse_qs
 from typing import List, Set, Dict, Optional, Tuple
+from PIL import Image
 
 # full_scraper.pyから必要な関数と定数をインポート
 # 同じディレクトリからインポート
@@ -40,17 +42,22 @@ SAVE_DIRECTORY = os.path.join(PROJECT_ROOT, 'static', 'images')
 
 
 def download_image(session, image_url, save_path):
-    """指定されたURLから画像をダウンロードして保存する"""
+    """指定されたURLから画像をダウンロードしてWebPとして保存する"""
     try:
         response = session.get(image_url, stream=True)
         response.raise_for_status()
         
-        with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        # 画像をPillowで読み込み、WebPとして保存
+        img_data = BytesIO(response.content)
+        with Image.open(img_data) as img:
+            # RGBA形式を維持（透明度対応）
+            img.save(save_path, 'WEBP', quality=80, method=6)
         return True
     except requests.exceptions.RequestException as e:
-        print(f"      -> 画像ダウンロード失敗: {e}")
+        print(f"      -> download error: {e}")
+        return False
+    except Exception as e:
+        print(f"      -> image conversion error: {e}")
         return False
 
 
@@ -174,7 +181,7 @@ def scrape_new_aliens_reverse_order(
             conn.commit()
             
             if icon_url:
-                save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.png")
+                save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.webp")
                 if not os.path.exists(save_filepath):
                     image_url_map[alien_id] = icon_url
             
@@ -238,23 +245,23 @@ def download_images_for_new_aliens(
     print(f"\n--- 新規エイリアン画像ダウンロード開始（{len(image_url_map)}件）---")
 
     for alien_id, image_url in image_url_map.items():
-        save_filename = f"{alien_id}.png"
+        save_filename = f"{alien_id}.webp"
         save_filepath = os.path.join(SAVE_DIRECTORY, save_filename)
         
         # 既に存在する場合はスキップ
         if os.path.exists(save_filepath):
-            print(f"  -> 図鑑No.{alien_id} の画像は既に存在します。スキップします。")
+            print(f"  -> No.{alien_id} image already exists. Skipping.")
             continue
         
-        print(f"  -> 図鑑No.{alien_id} の画像をダウンロード中...")
+        print(f"  -> Downloading image for No.{alien_id}...")
         if download_image(session, image_url, save_filepath):
             downloaded_count += 1
             # 保存後の確認
             if os.path.exists(save_filepath):
                 file_size = os.path.getsize(save_filepath)
-                print(f"    -> 完了: {save_filename} (サイズ: {file_size} bytes, パス: {save_filepath})")
+                print(f"    -> Done: {save_filename} (size: {file_size} bytes)")
             else:
-                print(f"    -> 警告: {save_filename} のダウンロードは成功したが、ファイルが存在しません")
+                print(f"    -> Warning: {save_filename} download succeeded but file not found")
         time.sleep(0.5)  # サーバー負荷軽減
     
     return downloaded_count
@@ -327,7 +334,7 @@ def scrape_specific_aliens(
         conn.commit()
         
         if not skip_images and icon_url:
-            save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.png")
+            save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.webp")
             if not os.path.exists(save_filepath):
                 image_url_map[alien_id] = icon_url
         
@@ -492,7 +499,7 @@ def main(
                     continue
                 
                 if icon_url:
-                    save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.png")
+                    save_filepath = os.path.join(SAVE_DIRECTORY, f"{alien_id}.webp")
                     if not os.path.exists(save_filepath):
                         missing_image_map[alien_id] = icon_url
                 
