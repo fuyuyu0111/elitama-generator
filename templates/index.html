@@ -2189,7 +2189,7 @@
                     data-info-d="{{ alien.attack_range }}" data-info-f="{{ alien.role }}"
                     data-info-e1="{{ alien.type_1 }}" data-info-e2="{{ alien.type_2 }}"
                     data-info-e3="{{ alien.type_3 }}" data-info-e4="{{ alien.type_4 }}" title="{{ alien.name }}">
-                    <img src="/static/images/{{ alien.id }}.png" alt="{{ alien.name }}">
+                    <img src="/static/images/{{ alien.id }}.webp" alt="{{ alien.name }}">
                     <div class="sort-value-display"></div>
                     <div class="alien-name">{{ alien.name }}</div>
                 </div>
@@ -3194,7 +3194,7 @@
             imgElements.forEach(img => {
                 const src = img.getAttribute('src');
                 if (src) {
-                    const iconName = src.replace('/static/icon/', '').replace('.png', '');
+                    const iconName = src.replace('/static/icon/', '').replace('.webp', '');
                     const existingIcon = document.querySelector(`img[src="${src}"]`);
                     if (existingIcon && existingIcon !== img && existingIcon.complete) {
                         // 既存の画像をクローンして置き換え
