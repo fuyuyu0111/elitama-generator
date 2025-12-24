@@ -2071,7 +2071,6 @@
                 <div class="scrape-dropdown" id="scrape-dropdown" role="menu">
                     <button type="button" data-action="full" role="menuitem">全体スクレイピング</button>
                     <button type="button" data-action="partial" role="menuitem">部分スクレイピング</button>
-                    <button type="button" data-action="analysis" role="menuitem">指定解析のみ</button>
                 </div>
             </div>
             <div class="header-overview-container">
@@ -8505,17 +8504,7 @@
             });
         }
 
-        function triggerAnalysisOnly() {
-            if (!isAdminMode) return;
-            closeScrapeMenu();
-            openScrapeInputModal({
-                title: '指定解析のみ実行',
-                description: 'LLM解析を再実行したい図鑑No.を入力してください。スクレイピングは行わず、既存データを元に解析のみを実行します。',
-                placeholder: '例: 1611-1613,1615',
-                submitLabel: '解析',
-                onSubmit: (ids) => runScrapeRequest('/api/admin/trigger-analysis-only', { ids })
-            });
-        }
+
 
         if (scrapeToggleButton) {
             scrapeToggleButton.addEventListener('click', toggleScrapeMenu);
@@ -8533,8 +8522,6 @@
                     triggerFullScrape();
                 } else if (action === 'partial') {
                     triggerPartialScrape();
-                } else if (action === 'analysis') {
-                    triggerAnalysisOnly();
                 }
             });
         }
