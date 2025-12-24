@@ -30,11 +30,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ファイルパス
 FIXED_JSONL_PATH = PROJECT_ROOT / "backups" / "skill_list_fixed.jsonl"
-RUN_STAGE1_PATH = PROJECT_ROOT / "analysis" / "run_stage1.py"
 BACKUP_DIR = PROJECT_ROOT / "backups"
 
-# PERSONALITY_EFFECT_CATEGORIESを直接定義（run_stage1.pyと同期）
-# run_stage1.pyをインポートするとgenai設定などが実行されるため、辞書だけをコピー
+# 個性用の効果カテゴリマッピング
 PERSONALITY_EFFECT_CATEGORIES = {
     # バフ - アップ系
     "いどうアップ": ("BUFF", "BUFF_BOOST"),

@@ -1,6 +1,6 @@
 """
 自動更新統合スクリプト
-スクレイピング → 画像取得 → 変更検知 → 解析（変更・追加された個性・特技のみ） → Discord通知
+スクレイピング → 画像取得 → Discord通知
 """
 
 import os
@@ -9,7 +9,7 @@ import sys
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Tuple, List, Set, Dict, Optional
+from typing import List, Set, Dict, Optional
 import psycopg2
 from psycopg2.extras import DictCursor
 
@@ -182,253 +182,6 @@ def get_existing_alien_ids(conn, alien_ids: List[int]) -> List[int]:
         return []
 
 
-def get_skill_texts_for_alien_ids(conn, alien_ids: List[int]) -> Tuple[Set[str], Set[str]]:
-    """
-    指定したエイリアンIDの個性・特技テキストを取得
-    """
-    regular_skills = set()
-    special_skills = set()
-    
-    if not alien_ids:
-        return regular_skills, special_skills
-    
-    try:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            placeholders = ','.join(['%s'] * len(alien_ids))
-            cur.execute(f"""
-                SELECT id, skill_text1, skill_text2, skill_text3, "S_Skill_text"
-                FROM alien
-                WHERE id IN ({placeholders})
-            """, alien_ids)
-            
-            for row in cur.fetchall():
-                for key in ('skill_text1', 'skill_text2', 'skill_text3'):
-                    text = row[key]
-                    if text and text != 'なし':
-                        regular_skills.add(text)
-                
-                special_text = row['S_Skill_text']
-                if special_text and special_text != 'なし':
-                    special_skills.add(special_text)
-    except Exception as e:
-        print(f"指定IDのスキルテキスト取得エラー: {e}")
-    
-    return regular_skills, special_skills
-
-
-def get_unanalyzed_skill_texts_for_alien_ids(conn, alien_ids: List[int]) -> Tuple[Set[str], Set[str]]:
-    """
-    指定したエイリアンIDから未解析個性・特技テキストを取得
-    
-    Args:
-        conn: データベース接続
-        alien_ids: エイリアンIDリスト
-    
-    Returns:
-        (未解析個性テキストのセット, 未解析特技テキストのセット)
-    """
-    regular_skills = set()
-    special_skills = set()
-    
-    if not alien_ids:
-        return regular_skills, special_skills
-    
-    try:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            placeholders = ','.join(['%s'] * len(alien_ids))
-            # 未解析個性テキストを取得
-            cur.execute(f"""
-                WITH analyzed_texts AS (
-                    SELECT DISTINCT skill_text FROM skill_text_verified_effects
-                )
-                SELECT DISTINCT skill_text
-                FROM (
-                    SELECT skill_text1 as skill_text FROM alien WHERE id IN ({placeholders}) AND skill_text1 IS NOT NULL AND skill_text1 != 'なし'
-                    UNION 
-                    SELECT skill_text2 FROM alien WHERE id IN ({placeholders}) AND skill_text2 IS NOT NULL AND skill_text2 != 'なし'
-                    UNION 
-                    SELECT skill_text3 FROM alien WHERE id IN ({placeholders}) AND skill_text3 IS NOT NULL AND skill_text3 != 'なし'
-                ) all_texts
-                WHERE skill_text NOT IN (SELECT skill_text FROM analyzed_texts)
-            """, alien_ids * 3)
-            for row in cur.fetchall():
-                if row['skill_text']:
-                    regular_skills.add(row['skill_text'])
-            
-            # 未解析特技テキストを取得
-            cur.execute(f"""
-                WITH analyzed_texts AS (
-                    SELECT DISTINCT skill_text FROM skill_text_verified_effects
-                )
-                SELECT DISTINCT "S_Skill_text" as skill_text
-                FROM alien
-                WHERE id IN ({placeholders})
-                  AND "S_Skill_text" IS NOT NULL 
-                  AND "S_Skill_text" != 'なし'
-                  AND "S_Skill_text" NOT IN (SELECT skill_text FROM analyzed_texts)
-            """, alien_ids)
-            for row in cur.fetchall():
-                if row['skill_text']:
-                    special_skills.add(row['skill_text'])
-    except Exception as e:
-        print(f"未解析スキルテキスト取得エラー: {e}")
-    
-    return regular_skills, special_skills
-
-
-def get_analysis_results_for_skills(conn, skill_texts: Set[str], skill_type: str = "regular") -> Dict[str, List[Dict]]:
-    """
-    指定されたスキルテキストの解析結果を取得
-    
-    Args:
-        conn: データベース接続
-        skill_texts: スキルテキストセット
-        skill_type: "regular"（個性）または"special"（特技）
-    
-    Returns:
-        {skill_text: [効果情報のリスト]} の辞書
-    """
-    if not skill_texts:
-        return {}
-    
-    results = {}
-    try:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            placeholders = ','.join(['%s'] * len(skill_texts))
-            cur.execute(f"""
-                SELECT skill_text, effect_name, target, condition_target, 
-                       has_requirement, requirement_details, requirement_count
-                FROM skill_text_verified_effects
-                WHERE skill_text IN ({placeholders})
-                ORDER BY skill_text, effect_name
-            """, list(skill_texts))
-            
-            for row in cur.fetchall():
-                skill_text = row['skill_text']
-                if skill_text not in results:
-                    results[skill_text] = []
-                
-                effect_info = {
-                    'effect_name': row['effect_name'],
-                    'target': row['target'],
-                    'condition_target': row['condition_target'],
-                    'has_requirement': row['has_requirement'],
-                    'requirement_details': row['requirement_details'],
-                    'requirement_count': row['requirement_count']
-                }
-                results[skill_text].append(effect_info)
-    except Exception as e:
-        print(f"解析結果取得エラー: {e}")
-    
-    return results
-
-
-def delete_existing_analysis(conn, skill_texts: Set[str]) -> None:
-    """
-    指定されたスキルテキストの既存解析データを削除（再解析のため）
-    
-    Args:
-        conn: データベース接続
-        skill_texts: 削除対象のスキルテキストセット
-    """
-    if not skill_texts:
-        return
-    
-    try:
-        with conn.cursor() as cur:
-            # skill_text_verified_effectsテーブルから該当するレコードを削除
-            placeholders = ','.join(['%s'] * len(skill_texts))
-            cur.execute(
-                f"DELETE FROM skill_text_verified_effects WHERE skill_text IN ({placeholders})",
-                list(skill_texts)
-            )
-            deleted_count = cur.rowcount
-            conn.commit()
-            print(f"  既存解析データを削除しました: {deleted_count}件")
-    except Exception as e:
-        print(f"  既存解析データ削除エラー: {e}")
-        conn.rollback()
-
-
-def run_analysis_for_skill_texts(conn, skill_texts: Set[str], skill_type: str = "regular", alien_ids: Optional[List[int]] = None, force_reanalyze: bool = False) -> Tuple[bool, str]:
-    """
-    指定された個性または特技テキストをLLMで解析
-    
-    Args:
-        conn: データベース接続
-        skill_texts: 解析対象のスキルテキストセット
-        skill_type: "regular"（個性）または"special"（特技）
-        alien_ids: 解析対象のエイリアンIDリスト（指定された場合、そのIDのみを解析）
-        force_reanalyze: Trueの場合、既存データも再解析（insert_effectsのUPSERTで上書き）
-    
-    Returns:
-        (成功した場合True, メッセージ)
-    """
-    if not skill_texts:
-        skill_type_name = "個性" if skill_type == "regular" else "特技"
-        return True, f"変更・追加された{skill_type_name}テキストがないため、解析をスキップしました。"
-    
-    try:
-        # 既存データは削除せず、insert_effectsのUPSERTロジックで上書き
-        # （レート制限等でサブプロセスが失敗しても既存データは保持される）
-        
-        analysis_module_path = PROJECT_ROOT / 'analysis'
-        run_stage1_path = analysis_module_path / 'run_stage1.py'
-        
-        # 個性と特技で異なるオプションを使用
-        # force_reanalyze=Falseの場合は--unanalyzed-onlyで未解析のみ
-        # force_reanalyze=Trueの場合は既存データも再解析（UPSERTで上書き）
-        if skill_type == "regular":
-            # 個性テキストのみ解析
-            cmd = [
-                sys.executable,
-                str(run_stage1_path),
-                '--regular-skills-only'
-            ]
-            if not force_reanalyze:
-                cmd.append('--unanalyzed-only')
-            skill_type_name = "個性"
-        elif skill_type == "special":
-            # 特技テキストのみ解析
-            cmd = [
-                sys.executable,
-                str(run_stage1_path),
-                '--special-skills-only'
-            ]
-            if not force_reanalyze:
-                cmd.append('--unanalyzed-only')
-            skill_type_name = "特技"
-        else:
-            return False, f"無効なskill_type: {skill_type}（'regular'または'special'を指定してください）"
-        
-        # alien_idsが指定されている場合、--alien-idsオプションを追加
-        if alien_ids:
-            ids_arg = ','.join(str(i) for i in alien_ids)
-            cmd.extend(['--alien-ids', ids_arg])
-        
-        result = subprocess.run(
-            cmd,
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace'
-        )
-        
-        stdout_text = result.stdout or ""
-        stderr_text = result.stderr or ""
-
-        if result.returncode == 0:
-            truncated_stdout = stdout_text[-500:] if stdout_text else ""
-            return True, f"{skill_type_name}テキスト解析処理が完了しました（{len(skill_texts)}件）。\n{truncated_stdout}"
-        else:
-            return False, f"{skill_type_name}テキスト解析処理でエラーが発生しました:\n{stderr_text}"
-    
-    except Exception as e:
-        skill_type_name = "個性" if skill_type == "regular" else "特技"
-        return False, f"{skill_type_name}テキスト解析処理中に例外が発生しました: {str(e)}"
-
-
 def ensure_connection(conn):
     """
     DB接続が有効か確認し、必要に応じて再接続する
@@ -530,11 +283,8 @@ def expand_id_argument(raw: str) -> List[int]:
 def main(
     scraping_url: str,
     skip_images: bool = False,
-    skip_analysis: bool = False,
     discord_webhook_url: str = None,
     full_scrape: bool = False,
-    analysis_ids: Optional[List[int]] = None,
-    skip_scraping: bool = False,
     scrape_ids: Optional[List[int]] = None
 ) -> int:
     """
@@ -543,8 +293,9 @@ def main(
     Args:
         scraping_url: スクレイピング開始URL
         skip_images: 画像取得をスキップ
-        skip_analysis: 解析をスキップ
         discord_webhook_url: Discord Webhook URL
+        full_scrape: 全体スクレイピングを実行するか
+        scrape_ids: 特定のIDのみスクレイピング
     
     Returns:
         終了コード（0=成功、1=失敗）
@@ -563,18 +314,11 @@ def main(
     updated_count = 0
     new_alien_ids = []
     images_downloaded = 0
-    changed_regular_skills = set()
-    changed_special_skills = set()
-    regular_analysis_results = {}
-    special_analysis_results = {}
     scrape_id_list: List[int] = sorted(set(scrape_ids or []))
-    effective_analysis_ids: List[int] = sorted(set(analysis_ids or []))
     if scrape_id_list:
         print(f"指定スクレイピング対象ID: {scrape_id_list}")
-    if effective_analysis_ids:
-        print(f"再解析指定ID: {effective_analysis_ids}")
     
-    # データベース接続を取得（変更検知用）
+    # データベース接続を取得
     conn = None
     try:
         conn = get_db_connection()
@@ -606,194 +350,87 @@ def main(
         print("ステップ1: スクレイピングと画像取得")
         print("=" * 80)
         
-        if skip_scraping:
-            print("スクレイピング処理をスキップします (--skip-scraping 指定)。")
-        else:
-            try:
-                # 逆順スクレイピング（デフォルト）・全体スクレイピング・指定IDスクレイピング
-                if scrape_id_list:
-                    print("指定IDスクレイピングモードで実行します...")
-                    scrape_result = scraping_main(
-                        scraping_url,
-                        skip_images=skip_images,
-                        only_new=False,
-                        reverse_order=False,
-                        specific_ids=scrape_id_list
-                    )
-                elif full_scrape:
-                    print("全体スクレイピングモードで実行します...")
-                    scrape_result = scraping_main(
-                        scraping_url,
-                        skip_images=skip_images,
-                        only_new=True,
-                        reverse_order=False
-                    )
-                else:
-                    print("逆順スクレイピングモードで実行します（最新から）...")
-                    scrape_result = scraping_main(
-                        scraping_url,
-                        skip_images=skip_images,
-                        only_new=True,
-                        reverse_order=True
-                    )
-                
-                if isinstance(scrape_result, tuple):
-                    if len(scrape_result) == 4:
-                        new_count, updated_count, new_alien_ids, images_downloaded = scrape_result
-                    elif len(scrape_result) == 3:
-                        new_count, updated_count, new_alien_ids = scrape_result
-                        images_downloaded = 0 if skip_images else len(new_alien_ids)
-                    else:
-                        raise ValueError("scraping_main から予期しない戻り値フォーマットを受け取りました。")
-                else:
-                    raise ValueError("scraping_main からタプル以外の戻り値を受け取りました。")
-                
-                print(f"\nスクレイピング完了: 新規{new_count}件, 更新{updated_count}件")
-            
-            except Exception as e:
-                error_msg = f"スクレイピングエラー: {str(e)}"
-                errors.append(error_msg)
-                print(f"エラー: {error_msg}")
-                
-                if notifier and discord_webhook_url:
-                    send_scraping_result_detailed(
-                        discord_webhook_url,
-                        new_alien_names={},
-                        updated_alien_names={},
-                        changed_regular_skills=set(),
-                        changed_special_skills=set(),
-                        regular_analysis_results={},
-                        special_analysis_results={},
-                        images_downloaded=0,
-                        error_info={
-                            "step": "スクレイピング",
-                            "message": str(e),
-                            "progress": "スクレイピング処理中にエラーが発生しました"
-                        }
-                    )
-                
-                # スクレイピングが失敗した場合は処理を中断
-                return 1
-        
-        # ステップ2: スクレイピング対象IDから未解析個性・特技を取得
-        print("\n" + "=" * 80)
-        print("ステップ2: スクレイピング対象IDから未解析個性・特技を取得")
-        print("=" * 80)
-        
-        # スクレイピングに時間を要した場合に備え、接続を確認
-        conn = ensure_connection(conn)
-        
-        scraped_target_ids_set: Set[int] = set()
-        if skip_scraping:
-            print("スクレイピング工程はスキップされました。")
-        else:
+        try:
+            # 逆順スクレイピング（デフォルト）・全体スクレイピング・指定IDスクレイピング
             if scrape_id_list:
-                scraped_ids = set(new_alien_ids) if new_alien_ids else set()
-                existing_from_scrape_list = get_existing_alien_ids(conn, scrape_id_list)
-                scraped_ids.update(existing_from_scrape_list)
-                scraped_target_ids_set = scraped_ids
-                if len(scraped_ids) < len(scrape_id_list):
-                    missing_ids = sorted(set(scrape_id_list) - scraped_ids)
-                    print(f"  -> 警告: 以下のIDはスクレイピングされませんでした: {missing_ids}")
-            elif new_alien_ids:
-                scraped_target_ids_set = set(new_alien_ids)
+                print("指定IDスクレイピングモードで実行します...")
+                scrape_result = scraping_main(
+                    scraping_url,
+                    skip_images=skip_images,
+                    only_new=False,
+                    reverse_order=False,
+                    specific_ids=scrape_id_list
+                )
+            elif full_scrape:
+                print("全体スクレイピングモードで実行します...")
+                scrape_result = scraping_main(
+                    scraping_url,
+                    skip_images=skip_images,
+                    only_new=True,
+                    reverse_order=False
+                )
+            else:
+                print("逆順スクレイピングモードで実行します（最新から）...")
+                scrape_result = scraping_main(
+                    scraping_url,
+                    skip_images=skip_images,
+                    only_new=True,
+                    reverse_order=True
+                )
+            
+            if isinstance(scrape_result, tuple):
+                if len(scrape_result) == 4:
+                    new_count, updated_count, new_alien_ids, images_downloaded = scrape_result
+                elif len(scrape_result) == 3:
+                    new_count, updated_count, new_alien_ids = scrape_result
+                    images_downloaded = 0 if skip_images else len(new_alien_ids)
+                else:
+                    raise ValueError("scraping_main から予期しない戻り値フォーマットを受け取りました。")
+            else:
+                raise ValueError("scraping_main からタプル以外の戻り値を受け取りました。")
+            
+            print(f"\nスクレイピング完了: 新規{new_count}件, 更新{updated_count}件")
         
-        analysis_target_ids: List[int] = []
-        if effective_analysis_ids:
-            existing_ids = get_existing_alien_ids(conn, effective_analysis_ids)
-            analysis_target_ids = sorted(existing_ids)
-            if len(existing_ids) < len(effective_analysis_ids):
-                missing_ids = sorted(set(effective_analysis_ids) - set(existing_ids))
-                print(f"  -> 警告: 以下のIDはDBに存在しません: {missing_ids}")
+        except Exception as e:
+            error_msg = f"スクレイピングエラー: {str(e)}"
+            errors.append(error_msg)
+            print(f"エラー: {error_msg}")
+            
+            if notifier and discord_webhook_url:
+                send_scraping_result_detailed(
+                    discord_webhook_url,
+                    new_alien_names={},
+                    updated_alien_names={},
+                    changed_regular_skills=set(),
+                    changed_special_skills=set(),
+                    regular_analysis_results={},
+                    special_analysis_results={},
+                    images_downloaded=0,
+                    error_info={
+                        "step": "スクレイピング",
+                        "message": str(e),
+                        "progress": "スクレイピング処理中にエラーが発生しました"
+                    }
+                )
+            
+            # スクレイピングが失敗した場合は処理を中断
+            return 1
+        
+        # スクレイピング対象IDを収集
+        conn = ensure_connection(conn)
+        scraped_target_ids_set: Set[int] = set()
+        if scrape_id_list:
+            scraped_ids = set(new_alien_ids) if new_alien_ids else set()
+            existing_from_scrape_list = get_existing_alien_ids(conn, scrape_id_list)
+            scraped_ids.update(existing_from_scrape_list)
+            scraped_target_ids_set = scraped_ids
+            if len(scraped_ids) < len(scrape_id_list):
+                missing_ids = sorted(set(scrape_id_list) - scraped_ids)
+                print(f"  -> 警告: 以下のIDはスクレイピングされませんでした: {missing_ids}")
+        elif new_alien_ids:
+            scraped_target_ids_set = set(new_alien_ids)
         
         scraped_target_ids = sorted(scraped_target_ids_set)
-        combined_target_ids: List[int] = []
-        if not scraped_target_ids and not analysis_target_ids:
-            print("解析対象となるエイリアンIDがありません。")
-            changed_regular_skills = set()
-            changed_special_skills = set()
-        else:
-            if scraped_target_ids:
-                print(f"スクレイピング対象ID: {scraped_target_ids}")
-                new_regular_skills, new_special_skills = get_unanalyzed_skill_texts_for_alien_ids(conn, scraped_target_ids)
-                changed_regular_skills = set(new_regular_skills)
-                changed_special_skills = set(new_special_skills)
-                print(f"未解析個性・特技検出: 個性テキスト {len(new_regular_skills)}件, 特技テキスト {len(new_special_skills)}件")
-                if new_regular_skills:
-                    print(f"未解析個性テキスト（最初の5件）: {list(new_regular_skills)[:5]}")
-                if new_special_skills:
-                    print(f"未解析特技テキスト（最初の5件）: {list(new_special_skills)[:5]}")
-            else:
-                print("スクレイピング対象ID: なし")
-                changed_regular_skills = set()
-                changed_special_skills = set()
-            
-            if analysis_target_ids:
-                print(f"再解析指定ID: {analysis_target_ids}")
-                forced_regular_skills, forced_special_skills = get_skill_texts_for_alien_ids(conn, analysis_target_ids)
-                print(f"再解析対象個性テキスト: {len(forced_regular_skills)}件, 特技テキスト: {len(forced_special_skills)}件")
-                if forced_regular_skills:
-                    print(f"再解析個性テキスト（最初の5件）: {list(forced_regular_skills)[:5]}")
-                if forced_special_skills:
-                    print(f"再解析特技テキスト（最初の5件）: {list(forced_special_skills)[:5]}")
-                changed_regular_skills.update(forced_regular_skills)
-                changed_special_skills.update(forced_special_skills)
-            else:
-                print("再解析指定ID: なし")
-            
-            combined_target_ids = sorted(set(scraped_target_ids) | set(analysis_target_ids))
-        
-        # ステップ3: LLM解析（未解析個性・特技がある場合のみ）
-        if not skip_analysis and (changed_regular_skills or changed_special_skills):
-            print("\n" + "=" * 80)
-            print("ステップ3: LLM解析（変更・追加された個性・特技テキストを解析）")
-            print("=" * 80)
-            
-            # 3-1: 個性解析
-            if changed_regular_skills:
-                try:
-                    print("\n--- 3-1: 個性テキスト解析 ---")
-                    conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_regular_skills, skill_type="regular", alien_ids=combined_target_ids if combined_target_ids else None, force_reanalyze=bool(analysis_target_ids))
-                    if success:
-                        print(f"個性解析完了: {message}")
-                        # 解析結果を取得
-                        conn = ensure_connection(conn)
-                        regular_analysis_results = get_analysis_results_for_skills(conn, changed_regular_skills, skill_type="regular")
-                    else:
-                        errors.append(f"個性解析エラー: {message}")
-                        print(f"エラー: {message}")
-                
-                except Exception as e:
-                    error_msg = f"個性解析処理例外: {str(e)}"
-                    errors.append(error_msg)
-                    print(f"エラー: {error_msg}")
-            else:
-                print("\n--- 3-1: 個性テキスト解析 ---")
-                print("変更・追加された個性テキストがないため、解析をスキップしました。")
-            
-            # 3-2: 特技解析
-            if changed_special_skills:
-                try:
-                    print("\n--- 3-2: 特技テキスト解析 ---")
-                    conn = ensure_connection(conn)
-                    success, message = run_analysis_for_skill_texts(conn, changed_special_skills, skill_type="special", alien_ids=combined_target_ids if combined_target_ids else None, force_reanalyze=bool(analysis_target_ids))
-                    if success:
-                        print(f"特技解析完了: {message}")
-                        # 解析結果を取得
-                        conn = ensure_connection(conn)
-                        special_analysis_results = get_analysis_results_for_skills(conn, changed_special_skills, skill_type="special")
-                    else:
-                        errors.append(f"特技解析エラー: {message}")
-                        print(f"エラー: {message}")
-                
-                except Exception as e:
-                    error_msg = f"特技解析処理例外: {str(e)}"
-                    errors.append(error_msg)
-                    print(f"エラー: {error_msg}")
-            else:
-                print("\n--- 3-2: 特技テキスト解析 ---")
-                print("変更・追加された特技テキストがないため、解析をスキップしました。")
         
         # skill_list_fixed.jsonl を最新状態に更新
         try:
@@ -804,7 +441,7 @@ def main(
             errors.append(error_msg)
             print(f"エラー: {error_msg}")
         
-        # ステップ4: 最終結果をDiscordに通知（追加・更新・エラーのときのみ、1つのメッセージに統合）
+        # ステップ2: 最終結果をDiscordに通知
         if notifier and discord_webhook_url:
             # エラー情報を準備
             error_info = None
@@ -830,16 +467,16 @@ def main(
                     conn = ensure_connection(conn)
                     updated_alien_names = get_alien_names_by_ids(conn, updated_target_ids)
             
-            # 追加・更新・エラー・解析結果のいずれかがある場合のみ送信
-            if new_alien_names or updated_alien_names or error_info or changed_regular_skills or changed_special_skills:
+            # 追加・更新・エラーのいずれかがある場合のみ送信
+            if new_alien_names or updated_alien_names or error_info:
                 send_scraping_result_detailed(
                     discord_webhook_url,
                     new_alien_names=new_alien_names,
                     updated_alien_names=updated_alien_names,
-                    changed_regular_skills=changed_regular_skills,
-                    changed_special_skills=changed_special_skills,
-                    regular_analysis_results=regular_analysis_results,
-                    special_analysis_results=special_analysis_results,
+                    changed_regular_skills=set(),
+                    changed_special_skills=set(),
+                    regular_analysis_results={},
+                    special_analysis_results={},
                     images_downloaded=images_downloaded,
                     error_info=error_info
                 )
@@ -894,7 +531,7 @@ def main(
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='自動更新統合スクリプト')
+    parser = argparse.ArgumentParser(description='自動更新統合スクリプト（スクレイピングのみ）')
     parser.add_argument(
         '--url',
         type=str,
@@ -904,11 +541,6 @@ if __name__ == '__main__':
         '--skip-images',
         action='store_true',
         help='画像取得をスキップ'
-    )
-    parser.add_argument(
-        '--skip-analysis',
-        action='store_true',
-        help='LLM解析をスキップ'
     )
     parser.add_argument(
         '--discord-webhook',
@@ -921,19 +553,9 @@ if __name__ == '__main__':
         help='全体スクレイピングを実行（デフォルトは逆順スクレイピング）'
     )
     parser.add_argument(
-        '--analysis-ids',
-        type=str,
-        help='LLM解析を強制実行するエイリアンID（カンマ区切り、範囲指定は例: 1611-1623）'
-    )
-    parser.add_argument(
         '--scrape-ids',
         type=str,
         help='スクレイピング対象とするエイリアンID（カンマ区切り、範囲指定は例: 1611-1615）'
-    )
-    parser.add_argument(
-        '--skip-scraping',
-        action='store_true',
-        help='スクレイピング工程をスキップし、解析のみを実行'
     )
     
     args = parser.parse_args()
@@ -950,11 +572,8 @@ if __name__ == '__main__':
     # Discord Webhook URL取得
     discord_webhook_url = args.discord_webhook or os.environ.get('DISCORD_WEBHOOK_URL')
     
-    analysis_ids: List[int] = []
     scrape_ids: List[int] = []
     try:
-        if args.analysis_ids:
-            analysis_ids = expand_id_argument(args.analysis_ids)
         if args.scrape_ids:
             scrape_ids = expand_id_argument(args.scrape_ids)
     except ValueError as exc:
@@ -962,19 +581,13 @@ if __name__ == '__main__':
     
     if scrape_ids and args.full_scrape:
         parser.error('--scrape-ids と --full-scrape は同時に指定できません')
-    if scrape_ids and args.skip_scraping:
-        parser.error('--scrape-ids と --skip-scraping は同時に指定できません')
     
     exit_code = main(
         scraping_url,
         skip_images=args.skip_images,
-        skip_analysis=args.skip_analysis,
         discord_webhook_url=discord_webhook_url,
         full_scrape=args.full_scrape,
-        analysis_ids=analysis_ids if analysis_ids else None,
-        skip_scraping=args.skip_scraping,
         scrape_ids=scrape_ids if scrape_ids else None
     )
     
     sys.exit(exit_code)
-

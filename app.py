@@ -636,8 +636,7 @@ def api_admin_trigger_partial_scrape():
                 sys.executable,
                 str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
                 '--url', scraping_url,
-                '--scrape-ids', ids_arg,
-                '--skip-analysis'
+                '--scrape-ids', ids_arg
             ]
             if discord_webhook_url:
                 cmd.extend(['--discord-webhook', discord_webhook_url])
@@ -660,96 +659,6 @@ def api_admin_trigger_partial_scrape():
     return jsonify({
         'success': True,
         'message': '部分スクレイピングを開始しました。処理はバックグラウンドで実行されます。'
-    })
-
-@app.route('/api/admin/trigger-analysis-only', methods=['POST'])
-@require_admin
-def api_admin_trigger_analysis_only():
-    """指定IDの解析のみを非同期で実行（スクレイピングは行わない）"""
-    global _background_process_running, _background_process_type, _background_process_start_time
-    
-    data = request.json or {}
-    try:
-        ids = parse_id_list(data.get('ids'))
-    except ValueError as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-    
-    # 排他制御チェック
-    with _background_process_lock:
-        if _background_process_running:
-            elapsed = ""
-            if _background_process_start_time:
-                elapsed_sec = (datetime.now() - _background_process_start_time).total_seconds()
-                elapsed = f"（経過時間: {int(elapsed_sec)}秒）"
-            return jsonify({
-                'success': False,
-                'error': f'別の処理が実行中です: {_background_process_type}{elapsed}'
-            }), 409
-        
-        # ロックを取得
-        _background_process_running = True
-        _background_process_type = "指定解析"
-        _background_process_start_time = datetime.now()
-    
-    scraping_url = os.environ.get('SCRAPING_BASE_URL')
-    discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
-    if not scraping_url:
-        # ロック解除
-        with _background_process_lock:
-            _background_process_running = False
-            _background_process_type = None
-            _background_process_start_time = None
-        return jsonify({'success': False, 'error': 'SCRAPING_BASE_URLが設定されていません'}), 500
-    
-    ids_arg = ','.join(str(i) for i in ids)
-    
-    if discord_webhook_url:
-        try:
-            from scripts.utils.discord_notifier import DiscordNotifier
-            notifier = DiscordNotifier(discord_webhook_url)
-            notifier.send_info(
-                "指定解析のみを開始しました。\n処理はバックグラウンドで実行されます。",
-                details={
-                    "モード": "指定解析のみ（手動実行）",
-                    "対象ID": ids_arg
-                }
-            )
-        except Exception as e:
-            app.logger.warning(f"開始通知の送信に失敗しました: {e}")
-    
-    def run_analysis_only():
-        global _background_process_running, _background_process_type, _background_process_start_time
-        try:
-            env = build_scraper_subprocess_env()
-            cmd = [
-                sys.executable,
-                str(PROJECT_ROOT / 'scripts' / 'run_automated_update.py'),
-                '--url', scraping_url,
-                '--skip-scraping',
-                '--skip-images',
-                '--analysis-ids', ids_arg
-            ]
-            if discord_webhook_url:
-                cmd.extend(['--discord-webhook', discord_webhook_url])
-            
-            # リアルタイムログ出力を使用
-            run_command_with_realtime_logging(cmd, env, str(PROJECT_ROOT), output_prefix="AnalysisOnly")
-            
-        except Exception as e:
-            app.logger.error(f"Analysis-only run error: {e}")
-        finally:
-            # 処理完了後にロック解除
-            with _background_process_lock:
-                _background_process_running = False
-                _background_process_type = None
-                _background_process_start_time = None
-    
-    thread = threading.Thread(target=run_analysis_only, daemon=True)
-    thread.start()
-    
-    return jsonify({
-        'success': True,
-        'message': '指定解析のみを開始しました。処理はバックグラウンドで実行されます。'
     })
 
 @app.route('/api/bug-report', methods=['POST'])

@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  scrape-and-analyze:
+  scrape:
     runs-on: ubuntu-latest
     
     steps:
@@ -30,10 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: スクレイピングと解析を実行
+      - name: スクレイピングを実行
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           SCRAPING_BASE_URL: ${{ secrets.SCRAPING_BASE_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           AUTO_GIT_PUSH: "1"
@@ -48,6 +47,7 @@ jobs:
             --discord-webhook "$DISCORD_WEBHOOK_URL"
           # 注意: デフォルトで逆順スクレイピング（最新から）が実行されます
           # 全体スクレイピングが必要な場合は、管理モードから手動で実行してください
+
       
       - name: エラー時のDiscord通知
         if: failure()

@@ -126,7 +126,7 @@ def check_current_db_state(conn):
 
 
 def get_personality_effect_mapping():
-    """run_stage1.pyから個性用の効果マッピングを取得"""
+    """個性用の効果マッピングを取得"""
     # auto_complete_classification関数のマッピング
     effect_categories = {
         # バフ - アップ系
@@ -281,23 +281,10 @@ def backup_current_data(conn, output_dir):
 
 
 def get_special_skill_mapping():
-    """特技用の効果マッピングを取得（s_skill_effect_names.jsonから）"""
-    json_path = PROJECT_ROOT / "analysis" / "prompts" / "s_skill_effect_names.json"
-    if not json_path.exists():
-        print(f"警告: {json_path} が見つかりません。")
-        return {}
-    
-    with open(json_path, 'r', encoding='utf-8') as f:
-        effect_dict = json.load(f)
-    
-    # (effect_type, category)のタプルに変換
-    mapping = {}
-    for name, info in effect_dict.items():
-        effect_type = info.get('effect_type', '')
-        category = info.get('category', '')
-        mapping[name] = (effect_type, category)
-    
-    return mapping
+    """特技用の効果マッピングを取得（現在は使用しない）"""
+    # 元々analysis/prompts/s_skill_effect_names.jsonから読み込んでいたが、
+    # 解析機能の削除とともに空のマッピングを返す
+    return {}
 
 
 def modify_schema(conn):
