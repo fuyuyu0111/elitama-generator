@@ -13,6 +13,7 @@
     <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" type="image/png" href="/static/main_icon.png">
     <link rel="apple-touch-icon" href="/static/main_icon.png">
+    <script src="/static/js/main.js" defer></script>
 
     <style>
         /* ==========================================================================
@@ -2049,7 +2050,7 @@
     <div id="loading-overlay">
         <div>
             <p>エリたま編成ジェネレーター</p>
-            <p id="loading-message">データベース接続中...</p>
+            <p id="loading-message">読み込み中...</p>
         </div>
     </div>
 
@@ -2447,7 +2448,7 @@
         </div>
     </div>
 
-        <script>
+    <script>
         // Jinja2変数定義（main.jsより先に読み込み）
         const ALL_ALIENS = {{ all_aliens | tojson | safe }};
         const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
@@ -2455,7 +2456,6 @@
         const S_SKILL_EFFECTS = {{ s_skill_effects | tojson | safe }};
         const ALIEN_EFFECTS = {{ alien_effects | tojson | safe }};
     </script>
-    <script src="/static/js/main.js"></script>
 
 </body>
 
