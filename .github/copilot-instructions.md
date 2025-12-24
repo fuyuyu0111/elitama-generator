@@ -17,17 +17,18 @@ alien_egg/
 ├── app.py                               "メインアプリのバックエンド（Flask）"
 ├── requirements.txt                     "Pythonパッケージ一覧"
 ├── templates/
-│   └── index.html                       "メインアプリのフロントエンド（約10700行）"
+│   └── index.html                       "HTML/CSS + Jinja2変数定義（約2,500行）"
 ├── static/
 │   ├── images/                          "エイリアン画像（478体）【WebP形式】"
 │   ├── icon/                            "UI用アイコン【WebP形式】"
-│   ├── main_icon.png                    "アプリアイコン（favicon/apple-touch-icon用）【PNG形式・互換性重視】"
-│   ├── main_icon.webp                   "アプリアイコン（PWA用）【WebP形式・軽量】"
+│   ├── main_icon.png                    "アプリアイコン（favicon/apple-touch-icon用）【PNG形式】"
+│   ├── main_icon.webp                   "アプリアイコン（PWA用）【WebP形式】"
 │   ├── manifest.json                    "PWAマニフェスト"
 │   └── js/
+│       ├── main.js                      "メインJavaScript（約8,300行）"
 │       └── service-worker.js            "Service Worker（PWA用キャッシュ制御）"
 ├── scripts/
-│   ├── run_automated_update.py          "自動更新統合スクリプト（スクレイピングのみ）"
+│   ├── run_automated_update.py          "自動更新統合スクリプト"
 │   ├── scraping/
 │   │   ├── full_scraper.py              "データ収集スクリプト"
 │   │   └── combined_scraper.py          "スクレイピング+画像取得（WebP変換対応）"
@@ -38,42 +39,27 @@ alien_egg/
 └── backups/
     ├── skill_list_fixed.jsonl           "修正版個性解析データ"
     ├── special_skill_analysis.jsonl     "特技解析データ"
-    └── skill_verified_effects_backup.jsonl  "変更履歴のバックアップ（追記形式）"
+    └── skill_verified_effects_backup.jsonl  "変更履歴のバックアップ"
 ```
 
 ### 現在の状態（2024年12月更新）
 
-**メインアプリ（編成ジェネレーター）**: ✅ **完成**
-
+**メインアプリ**: ✅ **完成**
 - エイリアン編成、個性発動条件判定、バフ/デバフ絞り込み、管理機能が統合
-- 管理機能により、個性・特技の効果データを直接編集可能
+- JavaScriptは `static/js/main.js` に分離済み
+
+**コード構成**:
+- `index.html`: HTML構造、CSS、Jinja2変数定義のみ（約2,500行）
+- `main.js`: 全JavaScriptロジック（約8,300行）
+- Jinja2変数（`ALL_ALIENS`, `ALIEN_SKILL_DATA`等）はHTML側で定義し、main.jsから参照
 
 **個性解析システム**: ✅ **解析完了（Gemini API削除済み）**
-
-- 個性: 全849個の個性テキストを解析完了（2123件の効果データ）
-- 特技: 191件解析済み、29件は「ダメージのみ」
-- **注意**: Gemini APIを使用した自動解析機能は削除済み。新規個性・特技は管理モードから手動で登録
-
-**スクレイピングシステム**: ✅ **実装完了**
-
-- データ収集: `full_scraper.py`で全データを取得
-- 画像形式: **WebP形式**で保存（PNG比約12%削減）
-- スクレイピングモード:
-  - デフォルト（逆順スクレイピング）: 最新のエイリアンから逆順にチェック
-  - 全体スクレイピング: `--full-scrape` フラグで実行
-  - 部分スクレイピング: `--scrape-ids <ID列>` で指定IDのみ
-- 自動実行: GitHub Actionsで毎日00:02（JST）に自動実行
+- 個性: 全849個解析完了、特技: 191件解析済み
+- 新規個性・特技は管理モードから手動登録
 
 **画像形式**: ✅ **WebP形式に統一**
-
 - エイリアン画像、UIアイコン: **WebP形式**
 - メインアイコン: **PNG（favicon/apple-touch-icon）+ WebP（PWA）の併用**
-
-**データベース**: PostgreSQL
-
-- `alien`: エイリアン基本情報（478体）
-- `correct_effect_names`: 効果名の辞書
-- `skill_text_verified_effects`: 個性・特技テキストごとの効果
 
 -----
 
@@ -89,11 +75,10 @@ alien_egg/
 ### 設計思想
 
 1. **シンプルさ最優先**: ライブラリ不使用、基本的なDOM操作のみ
-2. **コード量の最小化**: 可能な限り1ファイル完結
-3. **操作の簡潔さ**: 画面遷移なし、1画面に情報集約
+2. **コード分離**: HTML/CSSとJavaScriptを分離（`index.html` + `main.js`）
+3. **Jinja2変数の扱い**: HTML側で定義 → JSから参照（`.js`ファイル内では`{{ }}`使用不可）
 4. **データ一括読み込み**: `@lru_cache`で初回に全データをメモリにキャッシュ
-5. **モバイル対応**: アドレスバーを考慮したスクロール対応
-6. **Git自動反映**: スクレイピング後の資産は自動コミット＆プッシュ
+5. **Git自動反映**: スクレイピング後の資産は自動コミット＆プッシュ
 
 -----
 
@@ -113,8 +98,8 @@ alien_egg/
 | `type_1`〜`type_4` | INTEGER | タイプ1-4 |
 | `skill_no1`〜`skill_no3` | TEXT | 個性名1-3 |
 | `skill_text1`〜`skill_text3` | TEXT | 個性テキスト1-3 |
-| `S_Skill` | TEXT | **特技名（引用符必須）** |
-| `S_Skill_text` | TEXT | **特技テキスト（引用符必須）** |
+| `S_Skill` | TEXT | 特技名（引用符必須） |
+| `S_Skill_text` | TEXT | 特技テキスト（引用符必須） |
 | `hp`, `power`, `motivation`, `size`, `speed` | INTEGER | ステータス値 |
 
 ### correct\_effect\_names テーブル (効果辞書)
@@ -123,9 +108,7 @@ alien_egg/
 |------|-----|------|
 | `correct_name` | TEXT | 効果名 |
 | `effect_type` | TEXT | BUFF, DEBUFF, STATUS |
-| `category` | TEXT | BUFF_BOOST, S_SKILL_HEAL... |
-| `target` | TEXT | バフ/デバフ対象 |
-| `condition_target` | TEXT | 効果対象（バフのみ） |
+| `category` | TEXT | カテゴリ |
 | **主キー** | **(correct_name, category)** | 複合主キー |
 
 ### skill\_text\_verified\_effects テーブル
@@ -136,93 +119,58 @@ alien_egg/
 | `skill_text` | TEXT | 個性説明文 |
 | `effect_name` | TEXT FK | 効果名 |
 | `effect_type` | TEXT | BUFF, DEBUFF, STATUS |
-| `category` | TEXT | カテゴリ |
-| `target` | TEXT | 効果対象 |
-| `has_requirement` | BOOLEAN | 味方編成要求の有無 |
-| `requirement_details` | TEXT | 要求内容 |
-| `requirement_count` | INTEGER | 要求数 |
 
 -----
 
-## 4. メインアプリの仕様
+## 4. フロントエンド構成
 
-### 基本機能
-
-- **5つのパーティスロット**: パーティ1〜5を切り替え可能
-- **ドラッグ&ドロップ**: エイリアン一覧からスロットへ移動
-- **個性発動条件判定**: リアルタイムで◯/✗アイコン表示
-- **絞り込み機能**: 属性、所属、攻撃範囲、ロール、タイプ、効果名
-- **ソート機能**: ID、たいりょく、こうげき、やるき、おおきさ、いどう
-
-### 状態管理
-
-```javascript
-const parties = {'1': [null,null,null,null,null], ..., '5': [...]};
-const ALL_ALIENS = {{ all_aliens | tojson | safe }}; 
-const ALL_EFFECTS = {{ all_effects | tojson | safe }};
-const ALIEN_EFFECTS = {{ alien_effects | tojson | safe }};
-const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
+### ファイル構成
 ```
+templates/index.html  ← HTML/CSS + Jinja2変数定義
+static/js/main.js     ← 全JavaScriptロジック
+```
+
+### Jinja2変数（HTML側で定義）
+```javascript
+// index.html 内の <script> で定義
+const ALL_ALIENS = {{ all_aliens | tojson | safe }};
+const ALIEN_SKILL_DATA = {{ alien_skill_data | tojson | safe }};
+const ALL_EFFECTS = {{ all_effects | tojson | safe }};
+const S_SKILL_EFFECTS = {{ s_skill_effects | tojson | safe }};
+const ALIEN_EFFECTS = {{ alien_effects | tojson | safe }};
+```
+
+### main.js の構造
+- `DOMContentLoaded`でローディング処理を実行
+- グローバル変数（上記Jinja2変数）を参照
+- 約8,300行のロジック（パーティ編成、D&D、フィルター、管理モード等）
 
 -----
 
 ## 5. 管理モード
 
 ### 認証
-
 - **パスワード認証**: 環境変数`ADMIN_PASSWORD`で管理
 - **セッション管理**: 30分間操作なしで自動ログアウト
 
 ### 機能
-
 - **個性・特技管理**: 効果の追加・編集・削除
 - **辞書管理**: 効果名の追加・編集
 - **変更適応**: 変更を一括適用、バックアップ自動作成
 
-### 主要APIエンドポイント
-
-- `/api/admin/login`: ログイン
-- `/api/admin/apply-changes`: 変更一括適用
-- `/api/admin/dictionary/add`: 辞書追加
+### パフォーマンス最適化
+- `updateAdminUI(skipRender)`: `skipRender=true`で全パーティ再描画をスキップ
+- 効果追加/削除時は変更カウント更新のみ（画像再読み込みを防止）
 
 -----
 
-## 6. よくある質問
-
-**Q: Gemini APIはまだ使用している？**
-→ **削除済み**。新規個性・特技は管理モードから手動で登録。
-
-**Q: 画像形式は？**
-→ **エイリアン画像・UIアイコン: WebP形式**。メインアイコン: PNG（互換性）+ WebP（PWA）併用。
-
------
-
-## 7. 運用・デプロイ仕様
+## 6. 運用・デプロイ仕様
 
 ### 自動スクレイピング（GitHub Actions）
-
 - スケジュール: 毎日00:02（JST）
-- 処理フロー: alienテーブル更新 → 画像ダウンロード（WebP変換） → Discord通知
-
-### 管理モードでの手動スクレイピング
-
-1. ヘッダー「管」→ パスワード入力
-2. 「実行」メニューから選択
-   - **全体スクレイピング**: 全件スクレイピング
-   - **部分スクレイピング**: 指定IDのみ
-
-### Git自動プッシュ
-
-- 成功終了時に自動コミット→プッシュ
-- 対象: `static/images`, `backups/skill_list_fixed.jsonl`
+- 処理: alienテーブル更新 → 画像ダウンロード（WebP変換） → Discord通知
 
 ### PWA化
-
 - `manifest.json`と`service-worker.js`でPWA対応
 - アイコン: PNG（favicon/apple-touch-icon）、WebP（PWAマニフェスト）
 - キャッシュ: `alien-egg-cache-v2`
-
-### Service Worker
-
-- ファイル: `static/js/service-worker.js`
-- キャッシュ対象: `/`, `/static/manifest.json`, `/static/main_icon.webp`
