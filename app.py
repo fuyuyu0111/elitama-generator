@@ -542,8 +542,18 @@ def api_admin_trigger_full_scrape():
                 if discord_webhook_url:
                     cmd.extend(['--discord-webhook', discord_webhook_url])
                 
-                # リアルタイムログ出力を使用
-                run_command_with_realtime_logging(cmd, env, str(PROJECT_ROOT), output_prefix="FullScrape")
+                # サブプロセスでスクレイピングを実行
+                result = subprocess.run(
+                    cmd,
+                    env=env,
+                    cwd=str(PROJECT_ROOT),
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode != 0:
+                    app.logger.error(f"Full scrape subprocess error: {result.stderr}")
+                else:
+                    app.logger.info(f"Full scrape completed successfully")
                 
             except Exception as e:
                 app.logger.error(f"Full scrape error: {e}")
@@ -641,8 +651,18 @@ def api_admin_trigger_partial_scrape():
             if discord_webhook_url:
                 cmd.extend(['--discord-webhook', discord_webhook_url])
             
-            # リアルタイムログ出力を使用
-            run_command_with_realtime_logging(cmd, env, str(PROJECT_ROOT), output_prefix="PartialScrape")
+            # サブプロセスでスクレイピングを実行
+            result = subprocess.run(
+                cmd,
+                env=env,
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                app.logger.error(f"Partial scrape subprocess error: {result.stderr}")
+            else:
+                app.logger.info(f"Partial scrape completed successfully")
 
         except Exception as e:
             app.logger.error(f"Partial scrape error: {e}")
