@@ -1816,6 +1816,101 @@
             background-color: var(--accent-green);
         }
 
+        /* 編成履歴エリア */
+        .formation-history {
+            display: flex;
+            align-items: center;
+            gap: 0.5vh;
+            padding: 0.5vh 1vh;
+            overflow-x: auto;
+            overflow-y: hidden;
+            height: 5.5vh;
+            flex-shrink: 0;
+            /* 編成スロットと同じ幅に制限 */
+            width: 95vw;
+            max-width: 42.65vh;
+            margin: 0.3vh auto;
+            /* 枠線とベース背景 */
+            border: 0.118vh dashed var(--border-color);
+            border-radius: 0.474vh;
+            background-color: rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+        }
+
+        /* PCではスクロールバーを薄く表示（マウスホイールでスクロール可能） */
+        .formation-history::-webkit-scrollbar {
+            height: 0.4vh;
+        }
+
+        .formation-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .formation-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 0.2vh;
+        }
+
+        .formation-history {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        .formation-history .alien-card {
+            /* 履歴エリアの高さからパディング分を引いた高さ */
+            height: calc(5.5vh - 1vh) !important;
+            width: auto !important;
+            min-width: calc(5.5vh - 1vh);
+            flex-shrink: 0;
+        }
+
+        .formation-history .alien-card img {
+            height: 100% !important;
+            width: auto !important;
+            aspect-ratio: 1 / 1;
+            border-radius: 0.5vh;
+        }
+
+        .formation-history .alien-name,
+        .formation-history .sort-value-display {
+            display: none !important;
+        }
+
+        /* 履歴内の「編成中」テキストをアイコンサイズに合わせて縮小 */
+        .formation-history .alien-card.selected::after {
+            font-size: 0.8vh !important;
+            padding: 0.15vh 0.3vh !important;
+        }
+
+        /* 履歴が空のときのプレースホルダー */
+        .formation-history-placeholder {
+            color: var(--light-text);
+            font-size: 1.2vh;
+            opacity: 0.6;
+            white-space: nowrap;
+        }
+
+        /* コンパクト版パーティセレクター */
+        .party-selector-compact {
+            height: 2vh;
+            margin: 0 !important;
+            gap: 1.5vh;
+        }
+
+        .party-selector-compact .party-nav-button {
+            font-size: 1.5vh;
+            padding: 0 1vh;
+        }
+
+        .party-selector-compact .party-dots {
+            gap: 1vh;
+        }
+
+        .party-selector-compact .dot {
+            width: 0.9vh;
+            height: 0.9vh;
+        }
+
         .party-slot.drag-over {
             border-color: #f0ad4e;
             transform: scale(1.02);
@@ -2088,18 +2183,11 @@
             </div>
         </header>
 
-        <!-- パーティ切り替えセレクター -->
-        <div class="party-selector">
-            <button id="prev-party-btn" class="party-nav-button">◀</button>
-            <div id="party-dots" class="party-dots">
-                <span class="dot active" data-party-id="1"></span>
-                <span class="dot" data-party-id="2"></span>
-                <span class="dot" data-party-id="3"></span>
-                <span class="dot" data-party-id="4"></span>
-                <span class="dot" data-party-id="5"></span>
-            </div>
-            <button id="next-party-btn" class="party-nav-button">▶</button>
+        <!-- 編成履歴エリア -->
+        <div class="formation-history" id="formation-history">
+            <!-- JSで動的生成 -->
         </div>
+
         <div class="layout-wrapper">
             <div class="main-container" id="main-container">
                 <div class="party-display-area" id="party-display">
@@ -2112,6 +2200,19 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- パーティ切り替えセレクター（コンパクト版） -->
+        <div class="party-selector party-selector-compact">
+            <button id="prev-party-btn" class="party-nav-button">◀</button>
+            <div id="party-dots" class="party-dots">
+                <span class="dot active" data-party-id="1"></span>
+                <span class="dot" data-party-id="2"></span>
+                <span class="dot" data-party-id="3"></span>
+                <span class="dot" data-party-id="4"></span>
+                <span class="dot" data-party-id="5"></span>
+            </div>
+            <button id="next-party-btn" class="party-nav-button">▶</button>
         </div>
 
         <!-- エイリアン一覧ドロワー -->

@@ -382,6 +382,87 @@ let currentSort = { key: 'id', order: 'desc' };
 let activeFilters = {};
 let nameSearchQuery = '';
 
+// ==========================================================================
+//  編成履歴機能
+// ==========================================================================
+let formationHistory = []; // 最大20体のエイリアンID（新しい順）
+
+/**
+ * 編成履歴にエイリアンを追加
+ * @param {string|number} alienId - エイリアンID
+ */
+function addToFormationHistory(alienId) {
+    const id = String(alienId);
+    // 既存の場合は削除して先頭に移動
+    formationHistory = formationHistory.filter(existId => existId !== id);
+    formationHistory.unshift(id);
+    // 20体を超えたら削除
+    if (formationHistory.length > 20) {
+        formationHistory = formationHistory.slice(0, 20);
+    }
+    renderFormationHistory();
+}
+
+/**
+ * 編成履歴エリアを描画
+ */
+function renderFormationHistory() {
+    const container = document.getElementById('formation-history');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // 履歴が空の場合はプレースホルダーを表示
+    if (formationHistory.length === 0) {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'formation-history-placeholder';
+        placeholder.textContent = 'ここに編成履歴が表示されます';
+        container.appendChild(placeholder);
+        return;
+    }
+
+    formationHistory.forEach(id => {
+        const originalCard = document.querySelector(`.alien-grid .alien-card[data-id="${id}"]`);
+        if (originalCard) {
+            const clone = originalCard.cloneNode(true);
+            container.appendChild(clone);
+
+            // クリックイベントを設定（ドロワーと同じ処理：編成中なら解除、そうでなければ追加）
+            clone.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const alienId = clone.dataset.id;
+                const currentParty = parties[currentPartyId];
+                const slotIndex = currentParty.findIndex(m => m && m.id === alienId);
+
+                if (slotIndex !== -1) {
+                    // 編成中の場合は解除
+                    removeFromParty(slotIndex);
+                } else {
+                    // 編成中でない場合は追加
+                    addToParty(clone.dataset);
+                }
+            });
+        }
+    });
+
+    // 選択状態を更新
+    updateFormationHistorySelectedState();
+}
+
+/**
+ * 編成履歴の選択状態を更新（パーティ切り替え時にも呼び出し）
+ */
+function updateFormationHistorySelectedState() {
+    const currentParty = parties[currentPartyId];
+    document.querySelectorAll('.formation-history .alien-card').forEach(card => {
+        const alienId = card.dataset.id;
+        const isInParty = currentParty.some(m => m && m.id === alienId);
+        card.classList.toggle('selected', isInParty);
+    });
+}
+
 /**
  * 文字列を正規化（ひらがな→カタカナ、全角→半角、大文字→小文字）
  */
@@ -417,6 +498,7 @@ function addToParty(alienCardDataSet) {
         return;
     }
     party[emptySlotIndex] = alienCardDataSet;
+    addToFormationHistory(alienCardDataSet.id); // 履歴に追加
     renderPartySlots();
     renderDrawerPartyPreview(); // ドロワープレビューも更新
     updateAlienCardSelectedState(); // 一覧の.selectedクラスを更新
@@ -433,6 +515,7 @@ function removeFromParty(slotIndex) {
     renderPartySlots();
     renderDrawerPartyPreview(); // ドロワープレビューも更新
     updateAlienCardSelectedState(); // 一覧の.selectedクラスを更新
+    updateFormationHistorySelectedState(); // 履歴の選択状態を更新
 }
 
 /**
@@ -444,8 +527,8 @@ function updateAlienCardSelectedState() {
         return;
     }
 
-    // まず全カードから.selectedを削除
-    document.querySelectorAll('.alien-card').forEach(card => {
+    // ドロワー内のカードのみを対象（履歴エリアは別関数で管理）
+    document.querySelectorAll('.alien-grid .alien-card').forEach(card => {
         card.classList.remove('selected');
     });
 
@@ -453,7 +536,7 @@ function updateAlienCardSelectedState() {
     const currentParty = parties[currentPartyId];
     currentParty.forEach(alien => {
         if (alien && alien.id) {
-            const card = document.querySelector(`.alien-card[data-id="${alien.id}"]`);
+            const card = document.querySelector(`.alien-grid .alien-card[data-id="${alien.id}"]`);
             if (card) {
                 card.classList.add('selected');
             }
@@ -484,6 +567,7 @@ function switchParty(direction) {
     renderPartySlots();
     renderDrawerPartyPreview(); // ドロワープレビューも更新
     updatePartySelectorUI();
+    updateFormationHistorySelectedState(); // 履歴の選択状態を更新
     setTimeout(() => { isAnimating = false; }, 150);
 }
 /**
@@ -4132,6 +4216,7 @@ document.querySelectorAll('.dot').forEach(dot => {
             slider.style.transform = `translateX(-${(parseInt(targetPartyId) - 1) * 100}%)`;
             renderPartySlots();
             updatePartySelectorUI();
+            updateFormationHistorySelectedState(); // 履歴の選択状態を更新
         }
     });
 });
@@ -8271,4 +8356,6 @@ if (sessionStorage.getItem('adminModeAfterReload') === 'true') {
     }
 }
 
+// 初期化: 編成履歴エリアを描画（空の状態でプレースホルダーを表示）
+renderFormationHistory();
 

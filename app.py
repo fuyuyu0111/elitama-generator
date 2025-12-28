@@ -1366,4 +1366,4 @@ def api_admin_get_effect_usage():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
