@@ -170,6 +170,11 @@ let isAdminMode = false;
 let pendingChanges = []; // 変更履歴: [{type: 'add'|'update'|'delete', skill_text: '...', effect_name: '...', data: {...}}]
 
 // ==========================================================================
+//  アリーナモード関連のグローバル変数
+// ==========================================================================
+let isArenaMode = false;
+
+// ==========================================================================
 //  通常のグローバル変数
 // ==========================================================================
 // 現在のタブ状態（'personality' または 'special'）
@@ -338,6 +343,12 @@ let longPressState = {
     alienData: null
 };
 
+// --- アリーナモード用P2データキャッシュ ---
+let arenaP2Cache = {
+    '1': [], '2': [], '3': [], '4': [], '5': []
+};
+
+// --- 現在ドラッグ中のアイテム情報（グローバル） ---
 // プレビュー描画中の選択ハイライト更新制御
 let suppressSelectedHighlight = false;
 
@@ -893,17 +904,57 @@ function renderPartySlots(partyId = currentPartyId) {
     const partyContainer = document.getElementById(`party-container-${partyId}`);
     partyContainer.innerHTML = '';
 
-    // プレビュー専用の拡張: previewパーティは最大6体まで描画（満員時の長押し用）
-    const maxSlots = (partyId === 'preview') ? Math.min(party.length, 6) : 5;
+    // アリーナモード時、ラベルを追加
+    if (isArenaMode) {
+        const labelP2 = document.createElement('div');
+        labelP2.className = 'party-label p2';
+        labelP2.textContent = 'P2';
+        partyContainer.appendChild(labelP2);
+
+        const labelP1 = document.createElement('div');
+        labelP1.className = 'party-label p1';
+        labelP1.textContent = 'P1';
+        partyContainer.appendChild(labelP1);
+    }
+
+    // パーティサイズを決定（アリーナモード時は10、通常は5）
+    // renderAllPartiesでpartiesのサイズは調整されているはずだが、念のため
+    let maxSlots = 5;
+    if (isArenaMode) {
+        maxSlots = 10;
+        // データ配列が足りない場合はnullで埋める（通常はarenaToggleで行うが安全策）
+        while (party.length < maxSlots) {
+            party.push(null);
+        }
+    } else {
+        // 通常モード時はプレビュー用に6番目以降を表示しない
+        maxSlots = Math.min(party.length, 5);
+    }
+
     for (let i = 0; i < maxSlots; i++) {
         const alienDataSet = party[i];
         const isOccupied = alienDataSet !== null;
-        // ！！！ (注) alienData は ALL_ALIENS (辞書) から取得 ！！！
         const alienData = isOccupied ? ALL_ALIENS[alienDataSet.id] : null;
 
         // スロット要素を作成
         const slot = document.createElement('div');
         slot.className = 'party-slot';
+
+        // アリーナモード時の配置用クラスと行指定
+        if (isArenaMode) {
+            // 行の計算: P1(0-4)はRow2-6, P2(5-9)はRow2-6
+            // slotIdx 0 -> Row 2
+            // slotIdx 5 -> Row 2
+            const row = (i < 5 ? i : i - 5) + 2;
+            slot.style.gridRow = String(row);
+
+            if (i < 5) {
+                slot.classList.add('arena-right-col'); // P1 (0-4)
+            } else {
+                slot.classList.add('arena-left-col'); // P2 (5-9)
+            }
+        }
+
         slot.dataset.slotIndex = i;
         const memberKey = isOccupied ? `id-${alienData.id}` : `empty-${i}`;
         slot.dataset.memberKey = memberKey;
@@ -1087,14 +1138,30 @@ function renderDrawerPartyPreview() {
 
     if (!partyLabel || !previewSlots) return;
 
-    // パーティ番号を更新
-    partyLabel.textContent = `P${currentPartyId}`;
+    // パーティ番号を更新（アリーナモード時は数字のみ）
+    partyLabel.textContent = isArenaMode ? `${currentPartyId}` : `P${currentPartyId}`;
 
-    // プレビュースロットを生成
+    // プレビュースロットを生成（アリーナモード時は10スロット）
     const party = parties[currentPartyId];
     previewSlots.innerHTML = '';
+    const slotCount = isArenaMode ? 10 : 5;
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < slotCount; i++) {
+        // アリーナモード時、行の先頭にラベルを挿入
+        if (isArenaMode) {
+            if (i === 0) {
+                const p1Label = document.createElement('div');
+                p1Label.className = 'preview-row-label p1';
+                p1Label.textContent = 'P1';
+                previewSlots.appendChild(p1Label);
+            } else if (i === 5) {
+                const p2Label = document.createElement('div');
+                p2Label.className = 'preview-row-label p2';
+                p2Label.textContent = 'P2';
+                previewSlots.appendChild(p2Label);
+            }
+        }
+
         const alienDataSet = party[i];
         const isOccupied = alienDataSet !== null;
         const alienData = isOccupied ? ALL_ALIENS[alienDataSet.id] : null;
@@ -1344,9 +1411,19 @@ function handlePreviewDragEnd(e) {
         }
 
         // 配列入れ替え
-        const item = party[srcIdx];
-        party.splice(srcIdx, 1);
-        party.splice(targetIdx, 0, item);
+        const isArenaSwap = isArenaMode && ((srcIdx < 5 && targetIdx >= 5) || (srcIdx >= 5 && targetIdx < 5));
+
+        if (isArenaSwap) {
+            // P1<->P2間の移動は単純入れ替え
+            const temp = party[srcIdx];
+            party[srcIdx] = party[targetIdx];
+            party[targetIdx] = temp;
+        } else {
+            // 同一パーティ内などは挿入（スライド）
+            const item = party[srcIdx];
+            party.splice(srcIdx, 1);
+            party.splice(targetIdx, 0, item);
+        }
 
         renderPartySlots();
         renderDrawerPartyPreview();
@@ -1482,10 +1559,19 @@ function handleDragEnd(e) {
             delete openedSkills[currentPartyId][i];
         }
 
-        // シンプルな配列入れ替え（挿入型）
-        const item = party[srcIdx];
-        party.splice(srcIdx, 1);
-        party.splice(targetIdx, 0, item);
+        // シンプルな配列入れ替え
+        // アリーナモードでのP1<->P2間移動はSwap、それ以外はSplice
+        const isArenaSwap = isArenaMode && ((srcIdx < 5 && targetIdx >= 5) || (srcIdx >= 5 && targetIdx < 5));
+
+        if (isArenaSwap) {
+            const temp = party[srcIdx];
+            party[srcIdx] = party[targetIdx];
+            party[targetIdx] = temp;
+        } else {
+            const item = party[srcIdx];
+            party.splice(srcIdx, 1);
+            party.splice(targetIdx, 0, item);
+        }
 
         renderPartySlots();
         renderDrawerPartyPreview(); // ドロワープレビューも更新
@@ -1545,6 +1631,9 @@ function updateSelectedStatusInList() {
     if (suppressSelectedHighlight) {
         return;
     }
+    // アリーナモード以外の場合は、パーティの先頭5体（P1）のみを「編成中」の判定対象とする
+    // ただし、cache戦略へ変更したため、parties配列自体がnormal modeでは5要素に切り詰められる。
+    // したがって、単純なfilterで問題ない（配列に存在＝編成中）。
     const currentPartyMemberIds = new Set(parties[currentPartyId].filter(m => m).map(m => m.id));
     document.querySelectorAll('.alien-card').forEach(card => {
         card.classList.toggle('selected', currentPartyMemberIds.has(card.dataset.id));
@@ -1579,6 +1668,17 @@ function checkPartyRealtime(partyId = currentPartyId, overrideParty = null, domI
         party.forEach((other, idx) => {
             // ！！！ (★修正★) other も dataset なので other.id でIDを取得 ！！！
             if (!other || !other.id || idx === slotIdx) return;
+
+            // アリーナモード時のP1/P2分割判定: 自分と同じグループのみ集計
+            if (isArenaMode) {
+                const isMyP1 = slotIdx < 5;
+                const isOtherP1 = idx < 5;
+                if (isMyP1 !== isOtherP1) return;
+            } else {
+                // 通常モード時: P2スロット（5以降）は無視する
+                // これにより、データ上P2が残っていても判定に影響しない
+                if (idx >= 5) return;
+            }
 
             // ！！！ (注) ALL_ALIENS のキーは文字列IDなので other.id を使う ！！！
             const alien = ALL_ALIENS[other.id];
@@ -3580,6 +3680,7 @@ const overviewContainer = document.getElementById('party-overview-container');
 let overviewDragState = {
     active: false,
     sourcePartyId: null,
+    sourceSubParty: null, // 'p1' or 'p2' (null for whole party)
     ghostElement: null
 };
 /**
@@ -3600,7 +3701,8 @@ function renderPartyOverview() {
         // Pラベル（ドラッグ可能）
         const label = document.createElement('div');
         label.className = 'overview-party-label';
-        label.textContent = `P${partyId}`;
+        // アリーナモード時は数字のみ
+        label.textContent = isArenaMode ? `${partyId}` : `P${partyId}`;
         label.dataset.partyId = partyId;
 
         // ドラッグイベント
@@ -3609,30 +3711,93 @@ function renderPartyOverview() {
 
         row.appendChild(label);
 
-        // スロット表示
-        const slotsDiv = document.createElement('div');
-        slotsDiv.className = 'overview-party-slots';
+        if (isArenaMode) {
+            // アリーナモード：P1/P2コンテナに分割
+            const arenaContainer = document.createElement('div');
+            arenaContainer.style.display = 'flex';
+            arenaContainer.style.flexDirection = 'column';
+            arenaContainer.style.gap = '0.5vh';
 
-        for (let i = 0; i < 5; i++) {
-            const alienDataSet = party[i];
-            const slot = document.createElement('div');
-            slot.className = 'overview-mini-slot';
+            // P1 Container
+            const p1Container = document.createElement('div');
+            p1Container.className = 'overview-sub-party p1';
+            p1Container.dataset.subParty = 'p1';
+            p1Container.dataset.partyId = partyId; // 親と同じIDを持たせる（判定用）
 
-            if (alienDataSet) {
-                const alienData = ALL_ALIENS[alienDataSet.id];
-                if (alienData && alienData.attribute) {
-                    slot.dataset.attribute = alienData.attribute;
+            const p1Label = document.createElement('div');
+            p1Label.className = 'overview-row-label p1';
+            p1Label.textContent = 'P1';
+            p1Label.addEventListener('mousedown', (e) => handleOverviewDragStart(e, partyId, 'p1'));
+            p1Label.addEventListener('touchstart', (e) => handleOverviewDragStart(e, partyId, 'p1'), { passive: false });
+            p1Container.appendChild(p1Label);
+
+            // P2 Container
+            const p2Container = document.createElement('div');
+            p2Container.className = 'overview-sub-party p2';
+            p2Container.dataset.subParty = 'p2';
+            p2Container.dataset.partyId = partyId;
+
+            const p2Label = document.createElement('div');
+            p2Label.className = 'overview-row-label p2';
+            p2Label.textContent = 'P2';
+            p2Label.addEventListener('mousedown', (e) => handleOverviewDragStart(e, partyId, 'p2'));
+            p2Label.addEventListener('touchstart', (e) => handleOverviewDragStart(e, partyId, 'p2'), { passive: false });
+            p2Container.appendChild(p2Label);
+
+            for (let i = 0; i < 10; i++) {
+                const alienDataSet = party[i];
+                const slot = document.createElement('div');
+                slot.className = 'overview-mini-slot';
+                slot.dataset.index = i;
+
+                if (alienDataSet) {
+                    const alienData = ALL_ALIENS[alienDataSet.id];
+                    if (alienData && alienData.attribute) {
+                        slot.dataset.attribute = alienData.attribute;
+                    }
+                    const img = createAlienImageElement(alienDataSet.id, '', alienData ? alienData.name : '');
+                    slot.appendChild(img);
+                } else {
+                    slot.classList.add('empty');
                 }
-                const img = createAlienImageElement(alienDataSet.id, '', alienData ? alienData.name : '');
-                slot.appendChild(img);
-            } else {
-                slot.classList.add('empty');
+
+                if (i < 5) {
+                    p1Container.appendChild(slot);
+                } else {
+                    p2Container.appendChild(slot);
+                }
             }
 
-            slotsDiv.appendChild(slot);
+            arenaContainer.appendChild(p1Container);
+            arenaContainer.appendChild(p2Container);
+            row.appendChild(arenaContainer);
+
+        } else {
+            // 通常モード：従来通りのフラットなスロット配置
+            const slotsDiv = document.createElement('div');
+            slotsDiv.className = 'overview-party-slots';
+
+            for (let i = 0; i < 5; i++) {
+                const alienDataSet = party[i];
+                const slot = document.createElement('div');
+                slot.className = 'overview-mini-slot';
+                // slot.dataset.index = i; // 通常モードでは不要
+
+                if (alienDataSet) {
+                    const alienData = ALL_ALIENS[alienDataSet.id];
+                    if (alienData && alienData.attribute) {
+                        slot.dataset.attribute = alienData.attribute;
+                    }
+                    const img = createAlienImageElement(alienDataSet.id, '', alienData ? alienData.name : '');
+                    slot.appendChild(img);
+                } else {
+                    slot.classList.add('empty');
+                }
+                slotsDiv.appendChild(slot);
+            }
+            row.appendChild(slotsDiv);
         }
 
-        row.appendChild(slotsDiv);
         overviewContainer.appendChild(row);
     });
 }
@@ -3640,16 +3805,20 @@ function renderPartyOverview() {
 /**
  * 一覧のドラッグ開始
  */
-function handleOverviewDragStart(e, partyId) {
+
+function handleOverviewDragStart(e, partyId, subParty = null) {
     if (overviewDragState.active) return;
     e.preventDefault();
 
     overviewDragState.active = true;
     overviewDragState.sourcePartyId = partyId;
+    overviewDragState.sourceSubParty = subParty;
 
     // ゴースト作成
     const ghost = document.createElement('div');
-    ghost.textContent = `P${partyId}`;
+    // "1-P1" の形式に変更
+    const sub = subParty ? (subParty === 'p1' ? 'P1' : 'P2') : '';
+    ghost.textContent = sub ? `${partyId}-${sub}` : `P${partyId}`;
     ghost.style.position = 'fixed';
     ghost.style.zIndex = 9999;
     ghost.style.pointerEvents = 'none';
@@ -3688,11 +3857,18 @@ function handleOverviewDragMove(e) {
 
     const el = document.elementFromPoint(clientX, clientY);
     const targetRow = el ? el.closest('.overview-party-row') : null;
+    const targetSubPartyContainer = el ? el.closest('.overview-sub-party') : null;
 
     // ハイライト解除
     document.querySelectorAll('.overview-party-row').forEach(r => r.classList.remove('drag-over'));
+    document.querySelectorAll('.overview-sub-party').forEach(r => r.classList.remove('drag-over'));
 
-    if (targetRow && targetRow.dataset.partyId !== overviewDragState.sourcePartyId) {
+    // SubPartyドラッグ時のハイライト（コンテナ自体をハイライト）
+    if (overviewDragState.sourceSubParty && targetSubPartyContainer) {
+        targetSubPartyContainer.classList.add('drag-over');
+    }
+    // 通常ドラッグ時のハイライト
+    else if (!overviewDragState.sourceSubParty && targetRow && targetRow.dataset.partyId !== overviewDragState.sourcePartyId) {
         targetRow.classList.add('drag-over');
     }
 }
@@ -3712,39 +3888,51 @@ function handleOverviewDragEnd(e) {
 
     const el = document.elementFromPoint(clientX, clientY);
     const targetRow = el ? el.closest('.overview-party-row') : null;
+    const targetSubPartyContainer = el ? el.closest('.overview-sub-party') : null;
 
-    if (targetRow && targetRow.dataset.partyId !== overviewDragState.sourcePartyId) {
+    if (targetSubPartyContainer && overviewDragState.sourceSubParty) {
+        // アリーナモード部分入れ替え
+        const targetPartyId = targetSubPartyContainer.dataset.partyId;
+        const targetSubParty = targetSubPartyContainer.dataset.subParty; // 'p1' or 'p2'
+        const sourcePartyId = overviewDragState.sourcePartyId;
+        const subParty = overviewDragState.sourceSubParty;
+
+        // 自分自身へのドロップ以外ならSwap
+        if (sourcePartyId !== targetPartyId || subParty !== targetSubParty) {
+            performOverviewArenaSwap(sourcePartyId, subParty, targetPartyId, targetSubParty);
+        }
+    }
+    else if (targetRow && !overviewDragState.sourceSubParty) {
+        // 従来通りのパーティ全体入れ替え
         const targetPartyId = targetRow.dataset.partyId;
         const sourcePartyId = overviewDragState.sourcePartyId;
 
-        // パーティデータを入れ替え
-        const temp = parties[sourcePartyId];
-        parties[sourcePartyId] = parties[targetPartyId];
-        parties[targetPartyId] = temp;
+        if (targetPartyId !== sourcePartyId) {
+            // パーティデータを入れ替え
+            const temp = parties[sourcePartyId];
+            parties[sourcePartyId] = parties[targetPartyId];
+            parties[targetPartyId] = temp;
 
-        // 開いたスキルの状態も入れ替え
-        const tempOpened = openedSkills[sourcePartyId];
-        openedSkills[sourcePartyId] = openedSkills[targetPartyId];
-        openedSkills[targetPartyId] = tempOpened;
+            // 開いたスキルの状態も入れ替え
+            const tempOpened = openedSkills[sourcePartyId];
+            openedSkills[sourcePartyId] = openedSkills[targetPartyId];
+            openedSkills[targetPartyId] = tempOpened;
 
-        // すべてのパーティコンテナを再描画（表示されていないパーティも即座に反映）
-        for (let partyId = 1; partyId <= 5; partyId++) {
-            renderPartySlots(String(partyId));
+            // アリーナモード以外の場合、P2キャッシュも入れ替え
+            if (!isArenaMode) {
+                const tempCache = arenaP2Cache[sourcePartyId];
+                arenaP2Cache[sourcePartyId] = arenaP2Cache[targetPartyId];
+                arenaP2Cache[targetPartyId] = tempCache;
+            }
+
+            // 全体入れ替え後の後処理（再描画など）は共通処理へ
+            finishOverviewDrop();
         }
-
-        // その他の表示も更新
-        renderPartyOverview();
-        renderDrawerPartyPreview();
-        updateAlienCardSelectedState();
     }
 
     // ハイライト解除
     document.querySelectorAll('.overview-party-row').forEach(r => r.classList.remove('drag-over'));
-
-    // ゴースト削除
-    if (overviewDragState.ghostElement && overviewDragState.ghostElement.parentNode) {
-        overviewDragState.ghostElement.parentNode.removeChild(overviewDragState.ghostElement);
-    }
+    document.querySelectorAll('.overview-sub-party').forEach(r => r.classList.remove('drag-over'));
 
     // イベントリスナー解除
     document.removeEventListener('mousemove', handleOverviewDragMove);
@@ -3752,9 +3940,87 @@ function handleOverviewDragEnd(e) {
     document.removeEventListener('touchmove', handleOverviewDragMove);
     document.removeEventListener('touchend', handleOverviewDragEnd);
 
+    // ゴースト削除
+    if (overviewDragState.ghostElement && overviewDragState.ghostElement.parentNode) {
+        overviewDragState.ghostElement.parentNode.removeChild(overviewDragState.ghostElement);
+    }
+
+    // 状態リセット
     overviewDragState.active = false;
     overviewDragState.sourcePartyId = null;
+    overviewDragState.sourceSubParty = null;
     overviewDragState.ghostElement = null;
+}
+
+/**
+ * アリーナモード：重複排除（P1優先、P2削除）
+ */
+function resolveArenaDuplicates(partyId) {
+    const party = parties[partyId];
+    if (!party) return;
+
+    const p1Ids = new Set();
+    // P1 (0-4) のIDを収集
+    for (let i = 0; i < 5; i++) {
+        if (party[i] && party[i].id) {
+            p1Ids.add(String(party[i].id));
+        }
+    }
+
+    // P2 (5-9) で重複があれば削除
+    for (let i = 5; i < 10; i++) {
+        if (party[i] && party[i].id) {
+            if (p1Ids.has(String(party[i].id))) {
+                party[i] = null;
+            }
+        }
+    }
+}
+
+/**
+ * アリーナモード：Overviewでの部分入れ替え実行
+ */
+function performOverviewArenaSwap(srcPid, srcSub, tgtPid, tgtSub) {
+    const srcStart = srcSub === 'p1' ? 0 : 5;
+    const tgtStart = tgtSub === 'p1' ? 0 : 5;
+
+    const srcParty = parties[srcPid];
+    const tgtParty = parties[tgtPid];
+
+    // データ入れ替え
+    // spliceを使うと参照が変わらないか注意だが、objectプロパティアクセスなのでOK
+    // ただし parties[id] は配列そのものなので slice でコピーして交換
+    const srcSlice = srcParty.slice(srcStart, srcStart + 5);
+    const tgtSlice = tgtParty.slice(tgtStart, tgtStart + 5);
+
+    // ソースにターゲットのスライスを適用
+    for (let i = 0; i < 5; i++) {
+        srcParty[srcStart + i] = tgtSlice[i];
+    }
+    // ターゲットにソースのスライスを適用
+    for (let i = 0; i < 5; i++) {
+        tgtParty[tgtStart + i] = srcSlice[i];
+    }
+
+    // 重複排除（両方のパーティに対して実行）
+    resolveArenaDuplicates(srcPid);
+    resolveArenaDuplicates(tgtPid);
+
+    finishOverviewDrop();
+}
+
+/**
+ * Overviewドロップ完了後の共通処理
+ */
+function finishOverviewDrop() {
+    // すべてのパーティコンテナを再描画
+    for (let partyId = 1; partyId <= 5; partyId++) {
+        renderPartySlots(String(partyId));
+    }
+    // 表示更新
+    renderPartyOverview();
+    renderDrawerPartyPreview();
+    updateAlienCardSelectedState();
 }
 
 function updateOverviewGhostPosition(e) {
@@ -8358,4 +8624,98 @@ if (sessionStorage.getItem('adminModeAfterReload') === 'true') {
 
 // 初期化: 編成履歴エリアを描画（空の状態でプレースホルダーを表示）
 renderFormationHistory();
+
+// ==========================================================================
+//  アリーナモード切り替え
+// ==========================================================================
+
+const arenaToggle = document.getElementById('arena-toggle');
+if (arenaToggle) {
+    arenaToggle.addEventListener('click', () => {
+        isArenaMode = !isArenaMode;
+        arenaToggle.classList.toggle('active', isArenaMode);
+        document.body.classList.toggle('arena-mode', isArenaMode);
+
+        // パーティ配列のサイズを調整
+        // パーティ配列のサイズを調整
+        const targetSize = isArenaMode ? 10 : 5;
+        Object.keys(parties).forEach(partyId => {
+            if (partyId === 'preview') return; // previewパーティは除外
+            const party = parties[partyId];
+
+            if (isArenaMode) {
+                // --- アリーナモードON: 10スロットに拡張 & P2復元 ---
+
+                // まず10枠にする
+                while (party.length < targetSize) {
+                    party.push(null);
+                }
+
+                // キャッシュがあれば復元（重複チェック付き）
+                const cachedP2 = arenaP2Cache[partyId] || [];
+                const p1Ids = new Set();
+
+                // 現在のP1 (0-4) のIDを収集
+                for (let i = 0; i < 5; i++) {
+                    if (party[i]) {
+                        p1Ids.add(party[i].id);
+                    }
+                }
+
+                // キャッシュからP2 (5-9) を復元
+                for (let i = 0; i < 5; i++) {
+                    const savedMember = cachedP2[i]; // キャッシュは0-4のインデックスで保存されている想定
+                    const targetSlotIdx = 5 + i;
+
+                    if (savedMember) {
+                        // 重複チェック: P1に同じIDがいなければ復元
+                        if (!p1Ids.has(savedMember.id)) {
+                            party[targetSlotIdx] = savedMember;
+                        } else {
+                            console.log(`Duplicate removed in P2 on Arena Restore: Slot ${targetSlotIdx} (ID: ${savedMember.id})`);
+                            party[targetSlotIdx] = null;
+                        }
+                    } else {
+                        party[targetSlotIdx] = null;
+                    }
+                }
+
+            } else {
+                // --- アリーナモードOFF: P2をキャッシュして5スロットに縮小 ---
+
+                // 現在のP2 (5-9) をキャッシュに保存
+                if (party.length >= 10) {
+                    arenaP2Cache[partyId] = party.slice(5, 10);
+                } else {
+                    // データが足りない場合はnullで埋めるなど
+                    arenaP2Cache[partyId] = [null, null, null, null, null];
+                }
+
+                // 5スロットに切り詰め
+                party.length = targetSize;
+            }
+        });
+
+        // 全パーティを再描画
+        for (let i = 1; i <= 5; i++) {
+            renderPartySlots(String(i));
+        }
+        renderDrawerPartyPreview();
+        checkAllPartiesRealtime();
+
+        // アリーナモード時、現在のパーティコンテナにactiveクラスを付与
+        if (isArenaMode) {
+            document.querySelectorAll('.party-container').forEach(container => {
+                container.classList.remove('active');
+            });
+            const currentContainer = document.getElementById(`party-container-${currentPartyId}`);
+            if (currentContainer) {
+                currentContainer.classList.add('active');
+            }
+        }
+
+        console.log('アリーナモード:', isArenaMode ? 'ON (10スロット)' : 'OFF (5スロット)');
+    });
+}
+
 
