@@ -1524,6 +1524,334 @@
             background-color: rgba(255, 136, 0, 0.2);
         }
 
+        /* アリーナモード切り替えスイッチ（一覧表示ボタンのすぐ左） */
+        .header-arena-container {
+            position: absolute;
+            right: 11.5vh;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .arena-toggle-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.3vh;
+        }
+
+        .arena-toggle {
+            position: relative;
+            width: 4vh;
+            height: 2.2vh;
+            background-color: var(--border-color);
+            border-radius: 1.1vh;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .arena-toggle::after {
+            content: '';
+            position: absolute;
+            top: 0.2vh;
+            left: 0.2vh;
+            width: 1.8vh;
+            height: 1.8vh;
+            background-color: var(--light-text);
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        .arena-toggle.active {
+            background-color: #ff6b6b;
+        }
+
+        .arena-toggle.active::after {
+            transform: translateX(1.8vh);
+        }
+
+        .arena-button-label {
+            font-size: 0.9vh;
+            font-weight: bold;
+            margin-top: 0.2vh;
+        }
+
+        /* アリーナモード時のスタイル */
+        body.arena-mode .arena-toggle {
+            background-color: #ff6b6b;
+        }
+
+        body.arena-mode .arena-toggle::after {
+            transform: translateX(1.8vh);
+        }
+
+        /* ==========================================================================
+           アリーナモードのレイアウト（10スロット、5行2列）
+           ========================================================================== */
+        /* ==========================================================================
+           アリーナモードのレイアウト（10スロット、5行2列）
+           ========================================================================== */
+
+        /* アリーナモード時のパーティコンテナ共通設定（全パーティ表示） */
+        body.arena-mode .party-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr 1fr 1fr 1fr 1fr;
+            column-gap: 0.474vh;
+            row-gap: 0;
+            /* ラベルとスロットをくっつけるため0に */
+            height: 100%;
+            padding: 0 0.5vh;
+            min-width: 100%;
+            box-sizing: border-box;
+            grid-auto-flow: row;
+        }
+
+        /* スライダーラッパーのtransform制限を削除（通常の挙動に戻す） */
+        body.arena-mode #party-slider-wrapper {
+            width: 100%;
+        }
+
+        /* アリーナモード時のP1/P2ラベル（スロット結合デザイン） */
+        body.arena-mode .party-label {
+            font-size: 1.5vh;
+            font-weight: bold;
+            color: #fff;
+            text-align: center;
+            align-self: end;
+            /* 下揃えでスロットにくっつける */
+            width: 100%;
+            padding: 0.3vh 0;
+            margin: 0;
+            border-radius: 0.5vh 0.5vh 0 0;
+            /* 上部のみ角丸 */
+            box-shadow: none;
+            /* 背景色は個別に指定 */
+        }
+
+        body.arena-mode .party-label.p1 {
+            grid-column: 2;
+            grid-row: 1;
+            background-color: rgba(16, 24, 39, 0.95);
+        }
+
+        body.arena-mode .party-label.p2 {
+            grid-column: 1;
+            grid-row: 1;
+            background-color: rgba(40, 40, 60, 0.95);
+            /* P2用の色（青紫系に変更） */
+        }
+
+        /* アリーナモード時、ロールアイコン（f*.webp）とプレースホルダーを非表示 */
+        body.arena-mode .slot-stats-area .info-icon[src*="/icon/f"],
+        body.arena-mode .slot-stats-area .icon-placeholder-small {
+            display: none;
+        }
+
+        /* アリーナモード時のスロット配置制御とマージン調整 */
+        body.arena-mode .party-slot {
+            margin-bottom: 0.474vh;
+            /* スロット間の隙間 */
+        }
+
+        /* 右列（Slot 0-4 = P1） */
+        body.arena-mode .party-slot.arena-right-col {
+            grid-column: 2;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+
+        /* Topのスロット（Row 2）だけ上部の角丸を消す処理が必要だが、
+           全スロット共通のデザインとして結合感を出すならこれでOK。
+           ただし一番下以外は四角く見える。
+           一番上のスロット(Slot 0, 5)だけ border-radius-top 0 にするのが理想だが、
+           ラベルが乗るので全スロットの上角丸をなくしても違和感は少ないかも。
+           いや、隙間があるなら角丸あったほうがいい。
+           row-gap 0 にしたのはラベルと結合するため。
+           スロット同士は margin-bottom で隙間があるので、角丸保持すべき。
+           -> Slot 0/5 だけ上角丸削除。
+        */
+        body.arena-mode .party-slot[style*="grid-row: 2"] {
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+
+        /* 左列（Slot 5-9 = P2） */
+        body.arena-mode .party-slot.arena-left-col {
+            grid-column: 1;
+            background-color: rgba(40, 40, 60, 0.95);
+            /* P2背景色（青紫系に変更） */
+        }
+
+        /* ドロワープレビュー（アリーナモード時） */
+        body.arena-mode #preview-slots {
+            display: grid;
+            grid-template-columns: auto repeat(5, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0.5vh;
+            align-items: center;
+        }
+
+        body.arena-mode .preview-slot {
+            margin: 0;
+            width: auto;
+            height: auto;
+            aspect-ratio: 1;
+        }
+
+        /* プレビュー内のP1/P2ラベル */
+        body.arena-mode .preview-row-label {
+            font-size: 1.2vh;
+            font-weight: bold;
+            color: #fff;
+            text-align: center;
+            padding: 0 0.5vh;
+        }
+
+        body.arena-mode .preview-row-label.p1 {
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        body.arena-mode .preview-row-label.p2 {
+            grid-column: 1;
+            grid-row: 2;
+        }
+
+        /* アリーナモード時、パーティスロット：左右2列レイアウト */
+        body.arena-mode .party-slot {
+            height: auto;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto auto auto auto;
+            grid-template-areas:
+                "attack skills"
+                "icon skills"
+                "type skills"
+                "button skills";
+            padding: 0.3vh;
+            gap: 0.2vh 0.5vh;
+        }
+
+        /* アリーナモード時、ステータスエリアをdisplay:contentsで展開 */
+        body.arena-mode .slot-stats-area {
+            display: contents;
+        }
+
+        /* アリーナモード時の stats-block の調整 */
+        body.arena-mode .slot-stats-area .stats-block:nth-child(3) {
+            justify-content: center;
+        }
+
+        /* アリーナモード時のタイプアイコン周りのマージンリセット */
+        body.arena-mode .slot-stats-area .stats-block:nth-child(3) .icon-container {
+            margin: 0;
+            padding: 0;
+            margin-top: 0 !important;
+            /* 上余白削除 */
+        }
+
+        body.arena-mode .slot-stats-area .stats-block:nth-child(3) .info-icon {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ロールアイコン隣接時の左マージンも強制削除 */
+        body.arena-mode .slot-stats-area .stats-block:nth-child(3) img.info-icon[src*="/e"] {
+            margin-left: 0 !important;
+        }
+
+        /* アリーナモード時、HP/パワーブロックを非表示 */
+        body.arena-mode .stats-hp-power-block {
+            display: none;
+        }
+
+        /* アリーナモード時、こうげき/所属ブロック（2番目のstats-block）を上に配置 */
+        body.arena-mode .slot-stats-area .stats-block:nth-child(2) {
+            grid-area: attack;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+        }
+
+        /* アリーナモード時、タイプブロック（3番目のstats-block）を下に配置 */
+        body.arena-mode .slot-stats-area .stats-block:nth-child(3) {
+            grid-area: type;
+            display: flex;
+            justify-content: center;
+            /* 中央揃えに戻す */
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+        }
+
+        /* アリーナモード時、ラベルと仕切りを非表示 */
+        body.arena-mode .stats-block-label,
+        body.arena-mode .stats-block-divider {
+            display: none;
+        }
+
+        /* アリーナモード時、情報アイコンを小さく */
+        body.arena-mode .slot-stats-area .info-icon {
+            width: 1.5vh;
+            height: 1.5vh;
+        }
+
+        body.arena-mode .icon-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.15vh;
+            justify-content: center;
+        }
+
+        /* アリーナモード時、キャラクターエリアをdisplay:contentsで展開 */
+        body.arena-mode .slot-character-area {
+            display: contents;
+        }
+
+        /* アリーナモード時、名前を非表示 */
+        body.arena-mode .slot-character-name {
+            display: none;
+        }
+
+        /* アリーナモード時、編成前のプレースホルダー */
+        body.arena-mode .slot-character-icon-placeholder {
+            grid-area: icon;
+            min-width: 7vh;
+            min-height: 7vh;
+            cursor: pointer;
+        }
+
+        /* アリーナモード時、編成後のアイコン */
+        body.arena-mode .slot-character-icon {
+            grid-area: icon;
+            max-width: 7vh;
+            max-height: 7vh;
+        }
+
+        /* アリーナモード時、編成解除ボタン */
+        body.arena-mode .remove-button {
+            grid-area: button;
+            font-size: 0.8vh;
+            padding: 0.2vh 0.3vh;
+            cursor: pointer;
+        }
+
+        /* アリーナモード時、スキルエリア */
+        body.arena-mode .slot-skills-area {
+            grid-area: skills;
+        }
+
+
         /* 一覧表示ボタン（使い方ボタンのすぐ左） */
         .header-overview-container {
             position: absolute;
@@ -1816,9 +2144,156 @@
             background-color: var(--accent-green);
         }
 
+        /* 編成履歴エリア */
+        .formation-history {
+            display: flex;
+            align-items: center;
+            gap: 0.5vh;
+            padding: 0.5vh 1vh;
+            overflow-x: auto;
+            overflow-y: hidden;
+            height: 5.5vh;
+            flex-shrink: 0;
+            /* 編成スロットと同じ幅に制限 */
+            width: 95vw;
+            max-width: 42.65vh;
+            margin: 0.3vh auto;
+            /* 枠線とベース背景 */
+            border: 0.118vh dashed var(--border-color);
+            border-radius: 0.474vh;
+            background-color: rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+        }
+
+        /* PCではスクロールバーを薄く表示（マウスホイールでスクロール可能） */
+        .formation-history::-webkit-scrollbar {
+            height: 0.4vh;
+        }
+
+        .formation-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .formation-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 0.2vh;
+        }
+
+        .formation-history {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        .formation-history .alien-card {
+            /* 履歴エリアの高さからパディング分を引いた高さ */
+            height: calc(5.5vh - 1vh) !important;
+            width: auto !important;
+            min-width: calc(5.5vh - 1vh);
+            flex-shrink: 0;
+        }
+
+        .formation-history .alien-card img {
+            height: 100% !important;
+            width: auto !important;
+            aspect-ratio: 1 / 1;
+            border-radius: 0.5vh;
+        }
+
+        .formation-history .alien-name,
+        .formation-history .sort-value-display {
+            display: none !important;
+        }
+
+        /* 履歴内の「編成中」テキストをアイコンサイズに合わせて縮小 */
+        .formation-history .alien-card.selected::after {
+            font-size: 0.8vh !important;
+            padding: 0.15vh 0.3vh !important;
+        }
+
+        /* 履歴が空のときのプレースホルダー */
+        .formation-history-placeholder {
+            color: var(--light-text);
+            font-size: 1.2vh;
+            opacity: 0.6;
+            white-space: nowrap;
+        }
+
+        /* コンパクト版パーティセレクター */
+        .party-selector-compact {
+            height: 2vh;
+            margin: 0 !important;
+            gap: 1.5vh;
+        }
+
+        .party-selector-compact .party-nav-button {
+            font-size: 1.5vh;
+            padding: 0 1vh;
+        }
+
+        .party-selector-compact .party-dots {
+            gap: 1vh;
+        }
+
+        .party-selector-compact .dot {
+            width: 0.9vh;
+            height: 0.9vh;
+        }
+
         .party-slot.drag-over {
             border-color: #f0ad4e;
             transform: scale(1.02);
+        }
+
+        /* 通常モードのOverviewスロット */
+        .overview-party-slots {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+        }
+
+        /* アリーナモードのサブパーティコンテナ (P1/P2) */
+        .overview-sub-party {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            padding: 0.2vh;
+            border-radius: 0.5vh;
+            /* ハイライト時の見栄え用 */
+            transition: all 0.2s;
+        }
+
+        /* アリーナモードのOverviewラッパー */
+        .overview-arena-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5vh;
+            width: 100%;
+        }
+
+        .overview-mini-slot {
+            width: 4vh;
+            height: 4vh;
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 0.1vh solid rgba(255, 255, 255, 0.2);
+            margin-right: 0.5vh;
+            border-radius: 0.5vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .overview-mini-slot.empty {
+            opacity: 0.5;
+        }
+
+        .overview-party-row.drag-over,
+        .overview-sub-party.drag-over {
+            box-shadow: 0 0 0.5vh var(--accent-green);
+            transform: scale(1.02);
+            transition: all 0.2s;
+            background-color: rgba(255, 255, 255, 0.1);
         }
 
         .slot-icon {
@@ -2000,6 +2475,34 @@
             gap: 0.474vh;
         }
 
+        /* アリーナモード時のOverviewスロットレイアウト */
+        body.arena-mode .overview-party-slots {
+            display: grid;
+            grid-template-columns: auto repeat(5, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0.5vh;
+            align-items: center;
+        }
+
+        /* Overview内の行ラベル（P1/P2） */
+        body.arena-mode .overview-row-label {
+            font-size: 1.2vh;
+            font-weight: bold;
+            color: #fff;
+            padding: 0 0.5vh;
+            text-align: center;
+        }
+
+        body.arena-mode .overview-row-label.p1 {
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        body.arena-mode .overview-row-label.p2 {
+            grid-column: 1;
+            grid-row: 2;
+        }
+
         .overview-mini-slot {
             width: 5.6vh;
             height: 5.6vh;
@@ -2074,6 +2577,12 @@
                     <button type="button" data-action="partial" role="menuitem">部分スクレイピング</button>
                 </div>
             </div>
+            <div class="header-arena-container" id="arena-container">
+                <div class="arena-toggle-wrapper">
+                    <div class="arena-toggle" id="arena-toggle"></div>
+                </div>
+                <div class="arena-button-label">アリーナ</div>
+            </div>
             <div class="header-overview-container">
                 <button id="overview-button" class="header-button">一</button>
                 <div class="overview-button-label">一覧表示</div>
@@ -2088,18 +2597,11 @@
             </div>
         </header>
 
-        <!-- パーティ切り替えセレクター -->
-        <div class="party-selector">
-            <button id="prev-party-btn" class="party-nav-button">◀</button>
-            <div id="party-dots" class="party-dots">
-                <span class="dot active" data-party-id="1"></span>
-                <span class="dot" data-party-id="2"></span>
-                <span class="dot" data-party-id="3"></span>
-                <span class="dot" data-party-id="4"></span>
-                <span class="dot" data-party-id="5"></span>
-            </div>
-            <button id="next-party-btn" class="party-nav-button">▶</button>
+        <!-- 編成履歴エリア -->
+        <div class="formation-history" id="formation-history">
+            <!-- JSで動的生成 -->
         </div>
+
         <div class="layout-wrapper">
             <div class="main-container" id="main-container">
                 <div class="party-display-area" id="party-display">
@@ -2112,6 +2614,19 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- パーティ切り替えセレクター（コンパクト版） -->
+        <div class="party-selector party-selector-compact">
+            <button id="prev-party-btn" class="party-nav-button">◀</button>
+            <div id="party-dots" class="party-dots">
+                <span class="dot active" data-party-id="1"></span>
+                <span class="dot" data-party-id="2"></span>
+                <span class="dot" data-party-id="3"></span>
+                <span class="dot" data-party-id="4"></span>
+                <span class="dot" data-party-id="5"></span>
+            </div>
+            <button id="next-party-btn" class="party-nav-button">▶</button>
         </div>
 
         <!-- エイリアン一覧ドロワー -->
@@ -2288,13 +2803,19 @@
                             <li>編成済みのエイリアンをドラッグして、別のスロットにドロップすると移動できます</li>
                             <li>一覧画面では編成しているエイリアンから入れ替えたいエイリアンへ<strong>直接ドラッグ&ドロップで入れ替えられます</strong></li>
                         </ul>
+
+                        <h3>編成履歴</h3>
+                        <ul>
+                            <li>編成した順に最新20体分の履歴が表示されます</li>
+                            <li>表示されるアイコンは一覧画面と同じ様に機能し、タップで編成/編成解除ができます</li>
+                        </ul>
                     </div>
 
-                    <!-- ページ3: 編成入れ替えの方法 -->
+                    <!-- ページ3: パーティの入れ替え -->
                     <div class="help-page" data-page="3" style="display: none;">
                         <h2>パーティの入れ替え</h2>
                         <ul>
-                            <li>◀▶ボタンまたは画面上部のドット（●）をタップしてパーティを切り替えます</li>
+                            <li>◀▶ボタンまたは画面下部のドット（●）をタップしてパーティを切り替えます</li>
                             <li>スマホならフリック、PCならスクロールでパーティを切り替えられます</li>
                             <li>スマホの場合、一覧画面のパーティ番号(P1、P2など)をフリックしても切り替えられます</li>
                         </ul>
@@ -2307,8 +2828,30 @@
                         </ul>
                     </div>
 
-                    <!-- ページ4: 要求の説明 -->
+                    <!-- ページ4: アリーナモード -->
                     <div class="help-page" data-page="4" style="display: none;">
+                        <h2>アリーナモード</h2>
+                        <p class="modal-overview">
+                            画面上部のアリーナボタンで、通常モードとアリーナモードを切り替えられます。
+                        </p>
+                        <h3>アリーナモードの特徴</h3>
+                        <ul>
+                            <li><strong>10体編成</strong>：P1とP2の計10体を同時に作成できます</li>
+                            <li><strong>リアルタイム判定</strong>：P1とP2はそれぞれ独立して個性の発動条件を判定します</li>
+                            <li><strong>配置</strong>：一覧画面などでは、P1とP2が上下に分かれて表示されます</li>
+                            <li><strong>データ保持</strong>：アリーナモードから通常モードに戻しても、P2の編成内容は消えずに保持されます</li>
+                        </ul>
+
+                        <h3>アリーナモードでの入れ替え</h3>
+                        <ul>
+                            <li>一覧表示画面では、「1-P1」「1-P2」のようなラベルやブロックをドラッグして、P1/P2単位で個別に入れ替えられます</li>
+                            <li>通常モードと同様、ドラッグ中に入れ替え対象がハイライト表示されます</li>
+                            <li>入れ替えにより同じパーティ内で重複が発生した場合、P1側のエイリアンが優先して残ります</li>
+                        </ul>
+                    </div>
+
+                    <!-- ページ5: 要求の説明 -->
+                    <div class="help-page" data-page="5" style="display: none;">
                         <h2>個性発動条件（要求）について</h2>
                         <p class="modal-overview">
                             個性スロットにアイコンが表示されている場合、効果を発動するための編成要求があることを示します
@@ -2333,8 +2876,8 @@
                         </ul>
                     </div>
 
-                    <!-- ページ5: 一覧画面の機能 -->
-                    <div class="help-page" data-page="5" style="display: none;">
+                    <!-- ページ6: 一覧画面の機能 -->
+                    <div class="help-page" data-page="6" style="display: none;">
                         <h2>一覧画面の機能</h2>
 
                         <h3>バフ・デバフ</h3>
@@ -2356,8 +2899,8 @@
                         </p>
                     </div>
 
-                    <!-- ページ6: バフ・デバフ絞り込み -->
-                    <div class="help-page" data-page="6" style="display: none;">
+                    <!-- ページ7: バフ・デバフ絞り込み -->
+                    <div class="help-page" data-page="7" style="display: none;">
                         <h2>バフ・デバフ絞り込み</h2>
 
                         <h3>タブの切り替え</h3>
@@ -2376,8 +2919,8 @@
                         </ul>
                     </div>
 
-                    <!-- ページ7: カテゴリ名の解説 -->
-                    <div class="help-page" data-page="7" style="display: none;">
+                    <!-- ページ8: カテゴリ名の解説 -->
+                    <div class="help-page" data-page="8" style="display: none;">
                         <h2>カテゴリ名の解説</h2>
 
                         <h3>個性タブのカテゴリ</h3>
@@ -2412,8 +2955,8 @@
                         </ul>
                     </div>
 
-                    <!-- ページ8: 不具合報告 -->
-                    <div class="help-page" data-page="8" style="display: none;">
+                    <!-- ページ9: 不具合報告 -->
+                    <div class="help-page" data-page="9" style="display: none;">
                         <h2>不具合報告</h2>
                         <p class="modal-overview">
                             不具合やミスの報告を匿名で制作者に送信できます。内容はDiscordに転送されるため返信はありません。気軽に報告してください。
