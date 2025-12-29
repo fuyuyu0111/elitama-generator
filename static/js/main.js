@@ -3937,19 +3937,9 @@ function handleOverviewDragEnd(e) {
     const targetRow = el ? el.closest('.overview-party-row') : null;
     const targetSubPartyContainer = el ? el.closest('.overview-sub-party') : null;
 
-    if (targetSubPartyContainer && overviewDragState.sourceSubParty) {
-        // アリーナモード部分入れ替え
-        const targetPartyId = targetSubPartyContainer.dataset.partyId;
-        const targetSubParty = targetSubPartyContainer.dataset.subParty; // 'p1' or 'p2'
-        const sourcePartyId = overviewDragState.sourcePartyId;
-        const subParty = overviewDragState.sourceSubParty;
-
-        // 自分自身へのドロップ以外ならSwap
-        if (sourcePartyId !== targetPartyId || subParty !== targetSubParty) {
-            performOverviewArenaSwap(sourcePartyId, subParty, targetPartyId, targetSubParty);
-        }
-    }
-    else if (targetRow && !overviewDragState.sourceSubParty) {
+    // パーティ全体入れ替え（sourceSubPartyがnullの場合）を先に判定
+    // アリーナモードでも、パーティラベル（数字）をドラッグした場合はパーティ全体入れ替え
+    if (targetRow && !overviewDragState.sourceSubParty) {
         // 従来通りのパーティ全体入れ替え
         const targetPartyId = targetRow.dataset.partyId;
         const sourcePartyId = overviewDragState.sourcePartyId;
@@ -3972,6 +3962,19 @@ function handleOverviewDragEnd(e) {
                 arenaP2Cache[targetPartyId] = tempCache;
             }
             saveState(); // 変更を保存
+            finishOverviewDrop(); // 表示を更新
+        }
+    }
+    else if (targetSubPartyContainer && overviewDragState.sourceSubParty) {
+        // アリーナモード部分入れ替え（P1ラベルまたはP2ラベルをドラッグした場合）
+        const targetPartyId = targetSubPartyContainer.dataset.partyId;
+        const targetSubParty = targetSubPartyContainer.dataset.subParty; // 'p1' or 'p2'
+        const sourcePartyId = overviewDragState.sourcePartyId;
+        const subParty = overviewDragState.sourceSubParty;
+
+        // 自分自身へのドロップ以外ならSwap
+        if (sourcePartyId !== targetPartyId || subParty !== targetSubParty) {
+            performOverviewArenaSwap(sourcePartyId, subParty, targetPartyId, targetSubParty);
         }
     }
 
