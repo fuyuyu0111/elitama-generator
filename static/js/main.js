@@ -182,6 +182,9 @@ let currentEffectTab = 'personality';
 let invalidDataFilterActive = false; // 不整合エイリアン絞り込みフラグ
 let effectUsageStats = {}; // 効果名ごとの使用数 {effect_name: count}
 
+// 永続化キー（初期化時に使用するため上部で定義）
+const PERSISTENCE_KEY = 'alienEggGenState';
+
 // JavaScript文字列用のエスケープ関数（onclickで使用）
 function escapeJsString(str) {
     if (!str) return '';
@@ -412,6 +415,7 @@ function addToFormationHistory(alienId) {
         formationHistory = formationHistory.slice(0, 20);
     }
     renderFormationHistory();
+    saveState(); // 履歴保存
 }
 
 /**
@@ -513,6 +517,7 @@ function addToParty(alienCardDataSet) {
     renderPartySlots();
     renderDrawerPartyPreview(); // ドロワープレビューも更新
     updateAlienCardSelectedState(); // 一覧の.selectedクラスを更新
+    saveState(); // 状態保存
 }
 
 /**
@@ -527,6 +532,7 @@ function removeFromParty(slotIndex) {
     renderDrawerPartyPreview(); // ドロワープレビューも更新
     updateAlienCardSelectedState(); // 一覧の.selectedクラスを更新
     updateFormationHistorySelectedState(); // 履歴の選択状態を更新
+    saveState(); // 状態保存
 }
 
 /**
@@ -579,6 +585,7 @@ function switchParty(direction) {
     renderDrawerPartyPreview(); // ドロワープレビューも更新
     updatePartySelectorUI();
     updateFormationHistorySelectedState(); // 履歴の選択状態を更新
+    saveState(); // 状態保存
     setTimeout(() => { isAnimating = false; }, 150);
 }
 /**
@@ -1391,6 +1398,7 @@ function handlePreviewDragEnd(e) {
                     renderPartySlots();
                     renderDrawerPartyPreview();
                     checkPartyRealtime();
+                    saveState(); // DnD変更保存
 
                     // 4. 一覧の.selectedクラスを更新
                     updateAlienCardSelectedState();
@@ -1427,6 +1435,7 @@ function handlePreviewDragEnd(e) {
 
         renderPartySlots();
         renderDrawerPartyPreview();
+        saveState(); // DnD変更保存
     }
 
     // ゴースト削除
@@ -1575,6 +1584,7 @@ function handleDragEnd(e) {
 
         renderPartySlots();
         renderDrawerPartyPreview(); // ドロワープレビューも更新
+        saveState(); // DnDによる変更を保存
     }
 
     // ゴースト削除
@@ -3924,9 +3934,7 @@ function handleOverviewDragEnd(e) {
                 arenaP2Cache[sourcePartyId] = arenaP2Cache[targetPartyId];
                 arenaP2Cache[targetPartyId] = tempCache;
             }
-
-            // 全体入れ替え後の後処理（再描画など）は共通処理へ
-            finishOverviewDrop();
+            saveState(); // 変更を保存
         }
     }
 
@@ -8625,6 +8633,136 @@ if (sessionStorage.getItem('adminModeAfterReload') === 'true') {
 // 初期化: 編成履歴エリアを描画（空の状態でプレースホルダーを表示）
 renderFormationHistory();
 
+// 状態復元（すべての変数初期化後に実行）
+setTimeout(() => {
+    loadState();
+}, 100);
+
+// ==========================================================================
+//  LocalStorageによる状態の永続化
+// ==========================================================================
+// const PERSISTENCE_KEY = 'alienEggGenState'; // 上部で定義済み
+
+/**
+ * 現在の状態をLocalStorageに保存
+ */
+function saveState() {
+    try {
+        // パーティデータのシリアライズ (IDのみ保存)
+        const serializedParties = {};
+        Object.keys(parties).forEach(partyId => {
+            serializedParties[partyId] = parties[partyId].map(member => member ? member.id : null);
+        });
+
+        // P2キャッシュのシリアライズ (IDのみ保存)
+        const serializedCache = {};
+        Object.keys(arenaP2Cache).forEach(partyId => {
+            serializedCache[partyId] = arenaP2Cache[partyId].map(member => member ? member.id : null);
+        });
+
+        const state = {
+            parties: serializedParties,
+            currentPartyId,
+            isArenaMode,
+            arenaP2Cache: serializedCache,
+            formationHistory,
+            timestamp: Date.now()
+        };
+
+        localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.error('Failed to save state:', e);
+    }
+}
+
+/**
+ * LocalStorageから状態を復元
+ */
+function loadState() {
+    try {
+        const json = localStorage.getItem(PERSISTENCE_KEY);
+        if (!json) return;
+
+        const state = JSON.parse(json);
+
+        // 1. 編成履歴の復元
+        if (state.formationHistory && Array.isArray(state.formationHistory)) {
+            formationHistory = state.formationHistory;
+            renderFormationHistory();
+        }
+
+        // 2. モードの復元
+        if (typeof state.isArenaMode === 'boolean' && state.isArenaMode !== isArenaMode) {
+            isArenaMode = state.isArenaMode;
+            // UIの切り替え
+            const arenaToggle = document.getElementById('arena-toggle');
+            if (arenaToggle) {
+                arenaToggle.classList.toggle('active', isArenaMode);
+            }
+            document.body.classList.toggle('arena-mode', isArenaMode);
+            // ※ここではまだrenderしない（最後にまとめて行う）
+        }
+
+        // 3. P2キャッシュの復元
+        if (state.arenaP2Cache) {
+            Object.keys(state.arenaP2Cache).forEach(partyId => {
+                const cachedIds = state.arenaP2Cache[partyId];
+                if (Array.isArray(cachedIds)) {
+                    // IDからオブジェクトを再構築
+                    arenaP2Cache[partyId] = cachedIds.map(id => {
+                        if (id === null) return null;
+                        const alienObj = allAliensData.find(a => a.id === Number(id));
+                        return alienObj ? { ...alienObj.dataset } : null; // datasetを模したオブジェクト
+                    });
+                }
+            });
+        }
+
+        // 4. パーティデータの復元
+        if (state.parties) {
+            Object.keys(state.parties).forEach(partyId => {
+                const memberIds = state.parties[partyId];
+                if (Array.isArray(memberIds)) {
+                    // IDからオブジェクトを再構築
+                    parties[partyId] = memberIds.map(id => {
+                        if (id === null) return null;
+                        // allAliensDataはinitAlienDataで生成済みであることを前提
+                        const alienObj = allAliensData.find(a => a.id === Number(id));
+                        // partiesにはdataset互換のオブジェクトを入れる必要がある
+                        return alienObj ? { ...alienObj.dataset } : null;
+                    });
+                }
+            });
+        }
+
+        // 5. 現在のパーティID復元とUI更新
+        if (state.currentPartyId && ['1', '2', '3', '4', '5'].includes(state.currentPartyId)) {
+            currentPartyId = state.currentPartyId;
+        }
+
+        // 6. 全パーティを描画（復元したデータを反映）
+        for (let i = 1; i <= 5; i++) {
+            renderPartySlots(String(i));
+        }
+
+        // 7. スライダー位置を復元
+        const slider = document.getElementById('party-slider-wrapper');
+        if (slider) {
+            slider.style.transform = `translateX(-${(parseInt(currentPartyId) - 1) * 100}%)`;
+        }
+
+        // 8. その他のUI更新
+        renderDrawerPartyPreview();
+        updatePartySelectorUI();
+        checkAllPartiesRealtime();
+        updateAlienCardSelectedState();
+        updateFormationHistorySelectedState();
+
+    } catch (e) {
+        console.error('Failed to load state:', e);
+    }
+}
+
 // ==========================================================================
 //  アリーナモード切り替え
 // ==========================================================================
@@ -8715,6 +8853,7 @@ if (arenaToggle) {
         }
 
         console.log('アリーナモード:', isArenaMode ? 'ON (10スロット)' : 'OFF (5スロット)');
+        saveState(); // 状態保存
     });
 }
 
