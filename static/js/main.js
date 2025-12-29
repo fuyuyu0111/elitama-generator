@@ -1020,15 +1020,25 @@ function renderPartySlots(partyId = currentPartyId) {
 
                 if (dragState.active) return;
 
-                // スワイプ判定: 移動距離が20px以上ならスワイプとみなしドロワーを開かない
+                // スワイプ判定
                 if (e.changedTouches.length > 0) {
                     const touchEndX = e.changedTouches[0].clientX;
                     const touchEndY = e.changedTouches[0].clientY;
-                    const deltaX = Math.abs(touchEndX - touchStartX);
-                    const deltaY = Math.abs(touchEndY - touchStartY);
+                    const deltaX = touchEndX - touchStartX;
+                    const deltaY = touchEndY - touchStartY;
 
-                    if (deltaX > 20 || deltaY > 20) {
-                        // スワイプ操作と判定、ドロワーを開かない
+                    // 横方向のスワイプが縦より大きく、50px以上移動した場合はパーティ切り替え
+                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+                        if (deltaX < 0) {
+                            switchParty('next');
+                        } else {
+                            switchParty('prev');
+                        }
+                        return;
+                    }
+
+                    // 20px以上移動していればスワイプとみなし、ドロワーを開かない
+                    if (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20) {
                         return;
                     }
                 }
