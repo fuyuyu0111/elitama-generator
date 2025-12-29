@@ -996,17 +996,44 @@ function renderPartySlots(partyId = currentPartyId) {
         } else {
             const placeholder = document.createElement('div');
             placeholder.className = 'slot-character-icon-placeholder';
+
+            // タッチ開始位置を追跡（スワイプ判定用）
+            let touchStartX = 0;
+            let touchStartY = 0;
+
             placeholder.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 openDrawer(e);
             });
+
+            placeholder.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
             placeholder.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (!dragState.active) {
-                    openDrawer(e);
+
+                if (dragState.active) return;
+
+                // スワイプ判定: 移動距離が20px以上ならスワイプとみなしドロワーを開かない
+                if (e.changedTouches.length > 0) {
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    const deltaX = Math.abs(touchEndX - touchStartX);
+                    const deltaY = Math.abs(touchEndY - touchStartY);
+
+                    if (deltaX > 20 || deltaY > 20) {
+                        // スワイプ操作と判定、ドロワーを開かない
+                        return;
+                    }
                 }
+
+                openDrawer(e);
             }, { passive: false });
 
             characterArea.appendChild(nameDiv);
