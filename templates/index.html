@@ -2346,6 +2346,148 @@
             gap: 0.947vh;
         }
 
+        /* 長押しプレビューでアリーナスタイルレイアウトを適用（統一UI） */
+        #preview-slot-container .party-slot {
+            height: 18vh;
+            min-height: 18vh;
+            max-height: 18vh;
+            display: grid;
+            grid-template-columns: 7vh 1fr;
+            grid-template-rows: 3.5vh 7vh 3.5vh auto;
+            grid-template-areas:
+                "type skills"
+                "icon skills"
+                "attack skills"
+                "button skills";
+            padding: 0.5vh;
+            gap: 0.3vh 0.8vh;
+            overflow: hidden;
+        }
+
+        #preview-slot-container .slot-stats-area {
+            display: contents;
+        }
+
+        /* HP/パワーブロックを非表示 */
+        #preview-slot-container .stats-hp-power-block {
+            display: none;
+        }
+
+        /* こうげき/所属ブロック（2番目のstats-block）を下に配置 */
+        #preview-slot-container .slot-stats-area .stats-block:nth-child(2) {
+            grid-area: attack;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+            width: 7vh;
+        }
+
+        /* こうげき/所属アイコンを大きく（エイリアンアイコンと同じ横幅） */
+        #preview-slot-container .slot-stats-area .stats-block:nth-child(2) .icon-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.3vh;
+            width: 100%;
+        }
+
+        #preview-slot-container .slot-stats-area .stats-block:nth-child(2) .info-icon {
+            width: 2.2vh;
+            height: 2.2vh;
+        }
+
+        /* タイプブロック（3番目のstats-block）を上に配置 */
+        #preview-slot-container .slot-stats-area .stats-block:nth-child(3) {
+            grid-area: type;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+            width: 7vh;
+        }
+
+        /* タイプアイコンを2×2グリッドで配置 */
+        #preview-slot-container .slot-stats-area .stats-block:nth-child(3) .icon-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1.6vh);
+            grid-template-rows: repeat(2, 1.6vh);
+            gap: 0.15vh;
+            justify-content: center;
+            align-content: center;
+            margin: 0 !important;
+            padding: 0 !important;
+            padding-bottom: 0.3vh !important;
+        }
+
+        #preview-slot-container .slot-stats-area .stats-block:nth-child(3) .info-icon {
+            width: 1.6vh;
+            height: 1.6vh;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* ラベルと仕切りを非表示 */
+        #preview-slot-container .stats-block-label,
+        #preview-slot-container .stats-block-divider {
+            display: none;
+        }
+
+        /* ロールアイコンとプレースホルダーを非表示 */
+        #preview-slot-container .slot-stats-area .info-icon[src*="/icon/f"],
+        #preview-slot-container .slot-stats-area .icon-placeholder-small {
+            display: none;
+        }
+
+        /* ロールアイコン隣接時の左マージンを強制削除 */
+        #preview-slot-container .slot-stats-area img.info-icon[src*="/e"] {
+            margin-left: 0 !important;
+        }
+
+
+        /* キャラクターエリアをdisplay:contentsで展開 */
+        #preview-slot-container .slot-character-area {
+            display: contents;
+        }
+
+        /* 名前を非表示 */
+        #preview-slot-container .slot-character-name {
+            display: none;
+        }
+
+        /* 編成後のアイコン（少し下に配置） */
+        #preview-slot-container .slot-character-icon {
+            grid-area: icon;
+            width: 7vh;
+            height: 7vh;
+            max-width: 7vh;
+            max-height: 7vh;
+            align-self: end;
+        }
+
+        /* 編成解除ボタン */
+        #preview-slot-container .remove-button {
+            grid-area: button;
+            font-size: 0.8vh;
+            padding: 0.2vh 0.3vh;
+            cursor: pointer;
+            display: none;
+        }
+
+        /* スキルエリア（固定サイズでスクロール） */
+        #preview-slot-container .slot-skills-area {
+            grid-area: skills;
+            height: 100%;
+            max-height: 100%;
+            overflow-y: auto;
+        }
+
         /* 一覧表示オーバーレイ */
         #party-overview-overlay {
             position: fixed;

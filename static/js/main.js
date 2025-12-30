@@ -652,26 +652,41 @@ function showLongPressPreview(alienDataSet) {
     const originalPreviewParty = parties[tempPartyId];
     const originalPreviewOpened = openedSkills[tempPartyId];
 
+    // プレビュー描画中はアリーナモードを一時無効化（Gridレイアウト適用を回避）
+    const originalIsArenaMode = isArenaMode;
+    isArenaMode = false;
+
     // 現在のパーティに追加した仮定でプレビューパーティを構築
-    const currentParty = parties[currentPartyId];
+    const currentParty = parties[originalCurrentPartyId];
 
     // 既に編成済みかチェック（数値として比較）
     const targetAlienId = parseInt(alienDataSet.id, 10);
     const alreadyInParty = currentParty.some(member => member && parseInt(member.id, 10) === targetAlienId);
 
     let previewParty;
+    let partyIsFull = false;
+    let existingPartyForCounts = null;
+
     if (alreadyInParty) {
-        // 既に編成済み → そのまま5体
+        // 既に編成済み → そのまま
         previewParty = [...currentParty];
     } else {
-        const emptySlotIndex = currentParty.indexOf(null);
+        // アリーナモードでもP1（0-4）を優先してチェック
+        const startIdx = 0;
+        const endIdx = 5;
+        const partySlice = currentParty.slice(startIdx, endIdx);
+        const emptySlotIndex = partySlice.indexOf(null);
+
         if (emptySlotIndex !== -1) {
-            // 空きがある → 5体のまま該当スロットに配置
+            // P1に空きがある → 該当スロットに配置
             previewParty = [...currentParty];
-            previewParty[emptySlotIndex] = alienDataSet;
+            previewParty[startIdx + emptySlotIndex] = alienDataSet;
         } else {
-            // 満員 → プレビュー専用で6体目を追加
-            previewParty = [...currentParty, alienDataSet];
+            // P1が満員 → プレビュー対象のみ表示（P1の集計を使用）
+            // ※アリーナモードでもプレビューは5スロットのみ描画するため、P2配置は不可
+            previewParty = [alienDataSet];
+            partyIsFull = true;
+            existingPartyForCounts = partySlice;
         }
     }
 
@@ -684,8 +699,15 @@ function showLongPressPreview(alienDataSet) {
     } finally {
         suppressSelectedHighlight = false;
     }
-    // 条件判定は描画済みのpreviewパーティ（最大6体）に対して通常通り実行
-    checkPartyRealtime(tempPartyId);
+
+    // 要求判定
+    if (partyIsFull) {
+        // 満員時：既存パーティの集計を使用して要求判定
+        checkPartyRealtimeWithExistingCounts(tempPartyId, existingPartyForCounts);
+    } else {
+        // 通常時：通常の要求判定
+        checkPartyRealtime(tempPartyId);
+    }
     currentPartyId = originalCurrentPartyId;
 
     const partyContainer = previewContainer.querySelector('#party-container-preview');
@@ -731,6 +753,9 @@ function showLongPressPreview(alienDataSet) {
     } else {
         delete openedSkills[tempPartyId];
     }
+
+    // アリーナモードを元に戻す
+    isArenaMode = originalIsArenaMode;
 
     previewOverlay.classList.add('active');
     longPressState.active = true;
@@ -1786,6 +1811,82 @@ function checkPartyRealtime(partyId = currentPartyId, overrideParty = null, domI
                 });
             }
         });
+    });
+}
+
+/**
+ * 満員パーティ用の要求判定（既存パーティのタイプ集計を再利用）
+ * @param {string} partyId - プレビュー用パーティID ('preview')
+ * @param {Array} existingParty - 既存の5体のパーティ（自分を除く）
+ */
+function checkPartyRealtimeWithExistingCounts(partyId, existingParty) {
+    const containerId = 'party-container-preview';
+    const partyContainer = document.getElementById(containerId);
+    if (!partyContainer) return;
+
+    const previewParty = parties[partyId];
+    if (!previewParty || previewParty.length === 0) return;
+
+    const member = previewParty[0]; // プレビュー対象
+    if (!member || !member.id) return;
+
+    const alienIdStr = member.id;
+
+    // 既存パーティ5体のタイプを集計（プレビュー対象を除く）
+    const counts = { a: {}, b: {}, c: {}, d: {}, e: {}, f: {} };
+    let alliesTotalCount = 0;
+
+    existingParty.forEach(other => {
+        if (!other || !other.id) return;
+        const alien = ALL_ALIENS[other.id];
+        if (!alien) return;
+
+        alliesTotalCount++;
+        if (alien.attribute) counts.a[alien.attribute] = (counts.a[alien.attribute] || 0) + 1;
+        if (alien.affiliation) counts.b[alien.affiliation] = (counts.b[alien.affiliation] || 0) + 1;
+        if (alien.attack_area) counts.c[alien.attack_area] = (counts.c[alien.attack_area] || 0) + 1;
+        if (alien.attack_range) counts.d[alien.attack_range] = (counts.d[alien.attack_range] || 0) + 1;
+        for (let j = 1; j <= 4; j++) {
+            const typeVal = alien[`type_${j}`];
+            if (typeVal) counts.e[typeVal] = (counts.e[typeVal] || 0) + 1;
+        }
+        if (alien.role) counts.f[alien.role] = (counts.f[alien.role] || 0) + 1;
+    });
+
+    // スロット0のみが存在（プレビュー対象）
+    const slotElem = partyContainer.querySelector('.party-slot[data-slot-index="0"]');
+    if (!slotElem) return;
+
+    // スキルごとに判定
+    [1, 2, 3].forEach(skillNum => {
+        const skillBlock = slotElem.querySelector(`.skill-block[data-skill-index="${skillNum}"]`);
+        if (!skillBlock) return;
+
+        const requirements = ALIEN_SKILL_DATA[alienIdStr]?.[skillNum] || [];
+
+        if (requirements.length > 0) {
+            const iconContainers = skillBlock.querySelectorAll('.skill-req-icons');
+            if (!iconContainers || iconContainers.length === 0) return;
+
+            iconContainers.forEach(iconContainer => {
+                const iconElements = iconContainer.querySelectorAll('.req-icon');
+
+                requirements.forEach((req, reqIndex) => {
+                    const isMet = checkCondition(req.type, req.value, req.count, req.is_not, counts, alliesTotalCount);
+
+                    const iconEl = iconElements[reqIndex];
+                    if (iconEl) {
+                        if (isMet) {
+                            iconEl.classList.remove('unmet');
+                            iconEl.classList.add('met');
+                        } else {
+                            iconEl.classList.remove('met');
+                            iconEl.classList.add('unmet');
+                        }
+                    }
+                });
+            });
+        }
     });
 }
 //
