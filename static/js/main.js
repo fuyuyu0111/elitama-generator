@@ -536,6 +536,58 @@ function removeFromParty(slotIndex) {
 }
 
 /**
+ * 選択中のパーティを全体リセット（P1とP2両方をクリア）
+ */
+function resetCurrentParty() {
+    const party = parties[currentPartyId];
+    // 開いている説明文をすべて閉じる
+    openedSkills[currentPartyId] = {};
+    // P1 (0-4) をリセット
+    for (let i = 0; i < 5; i++) {
+        if (party[i]) {
+            party[i] = null;
+        }
+    }
+    // P2 (5-9) もリセット（アリーナモード状態に関わらず）
+    for (let i = 5; i < party.length; i++) {
+        if (party[i]) {
+            party[i] = null;
+        }
+    }
+    // arenaP2Cacheもクリア
+    arenaP2Cache[currentPartyId] = [];
+
+    renderPartySlots();
+    renderDrawerPartyPreview();
+    updateAlienCardSelectedState();
+    updateFormationHistorySelectedState();
+    saveState();
+}
+
+/**
+ * パーティのP1またはP2のみをリセット（アリーナモード用）
+ * @param {string} section - 'p1' または 'p2'
+ */
+function resetPartySection(section) {
+    const party = parties[currentPartyId];
+    const startIdx = section === 'p1' ? 0 : 5;
+    const endIdx = section === 'p1' ? 5 : 10;
+
+    for (let i = startIdx; i < endIdx && i < party.length; i++) {
+        if (party[i]) {
+            delete openedSkills[currentPartyId][i];
+            party[i] = null;
+        }
+    }
+
+    renderPartySlots();
+    renderDrawerPartyPreview();
+    updateAlienCardSelectedState();
+    updateFormationHistorySelectedState();
+    saveState();
+}
+
+/**
  * 一覧のカードの.selectedクラスを現在のパーティの状態に基づいて更新
  * （重要：他パーティの編成状態は表示しない）
  */
@@ -936,17 +988,35 @@ function renderPartySlots(partyId = currentPartyId) {
     const partyContainer = document.getElementById(`party-container-${partyId}`);
     partyContainer.innerHTML = '';
 
-    // アリーナモード時、ラベルを追加
+    // アリーナモード時、ラベルとリセットボタンを追加
     if (isArenaMode) {
+        // P2ラベルとリセットボタン
         const labelP2 = document.createElement('div');
         labelP2.className = 'party-label p2';
-        labelP2.textContent = 'P2';
+        labelP2.innerHTML = '<span>P2</span><button class="party-section-reset-btn" data-section="p2">↺</button>';
         partyContainer.appendChild(labelP2);
+        const resetBtnP2 = labelP2.querySelector('.party-section-reset-btn');
+        if (resetBtnP2) {
+            resetBtnP2.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resetPartySection('p2');
+            });
+        }
 
+        // P1ラベルとリセットボタン
         const labelP1 = document.createElement('div');
         labelP1.className = 'party-label p1';
-        labelP1.textContent = 'P1';
+        labelP1.innerHTML = '<span>P1</span><button class="party-section-reset-btn" data-section="p1">↺</button>';
         partyContainer.appendChild(labelP1);
+        const resetBtnP1 = labelP1.querySelector('.party-section-reset-btn');
+        if (resetBtnP1) {
+            resetBtnP1.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resetPartySection('p1');
+            });
+        }
     }
 
     // パーティサイズを決定（アリーナモード時は10、通常は5）
@@ -8773,6 +8843,16 @@ if (sessionStorage.getItem('adminModeAfterReload') === 'true') {
 
 // 初期化: 編成履歴エリアを描画（空の状態でプレースホルダーを表示）
 renderFormationHistory();
+
+// リセットボタンのイベントリスナー
+const resetButton = document.getElementById('reset-button');
+if (resetButton) {
+    resetButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resetCurrentParty();
+    });
+}
 
 // 状態復元（すべての変数初期化後に実行）
 setTimeout(() => {

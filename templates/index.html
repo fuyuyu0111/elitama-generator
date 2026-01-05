@@ -1432,6 +1432,55 @@
             margin-top: 0.2vh;
         }
 
+        /* リセットボタン（管理ボタンの右隣、管理モード時は非表示） */
+        .header-reset-container {
+            position: absolute;
+            left: 6.5vh;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .header.admin-mode .header-reset-container {
+            display: none;
+            /* 管理モード時は非表示 */
+        }
+
+        .header-button-wide {
+            width: 4.5vh;
+            /* 横長に */
+        }
+
+        .reset-button-label {
+            font-size: 0.9vh;
+            font-weight: bold;
+            margin-top: 0.2vh;
+        }
+
+        /* P1/P2セクションリセットボタン（アリーナモード時のパーティラベル横） */
+        .party-section-reset-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 0.3vh;
+            color: var(--light-text);
+            font-size: 1.4vh;
+            padding: 0.2vh 0.5vh;
+            margin-left: 0.5vh;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .party-section-reset-btn:hover,
+        .party-section-reset-btn:active {
+            background-color: rgba(255, 136, 0, 0.3);
+            border-color: #ff8800;
+        }
+
         /* 辞書管理ボタン（管理ボタンの右隣、管理モード時のみ表示） */
         .header-dictionary-container {
             position: absolute;
@@ -2708,6 +2757,10 @@
             <div class="header-admin-container">
                 <button id="admin-button" class="header-button">管</button>
                 <div class="admin-button-label">管理</div>
+            </div>
+            <div class="header-reset-container">
+                <button id="reset-button" class="header-button header-button-wide">↺</button>
+                <div class="reset-button-label">リセット</div>
             </div>
             <div class="header-dictionary-container">
                 <button id="dictionary-button" class="header-button">辞</button>
