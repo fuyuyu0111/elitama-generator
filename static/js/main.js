@@ -1550,20 +1550,10 @@ function handlePreviewDragEnd(e) {
             delete openedSkills[currentPartyId][i];
         }
 
-        // 配列入れ替え
-        const isArenaSwap = isArenaMode && ((srcIdx < 5 && targetIdx >= 5) || (srcIdx >= 5 && targetIdx < 5));
-
-        if (isArenaSwap) {
-            // P1<->P2間の移動は単純入れ替え
-            const temp = party[srcIdx];
-            party[srcIdx] = party[targetIdx];
-            party[targetIdx] = temp;
-        } else {
-            // 同一パーティ内などは挿入（スライド）
-            const item = party[srcIdx];
-            party.splice(srcIdx, 1);
-            party.splice(targetIdx, 0, item);
-        }
+        // 配列入れ替え（Swap方式）
+        const temp = party[srcIdx];
+        party[srcIdx] = party[targetIdx];
+        party[targetIdx] = temp;
 
         renderPartySlots();
         renderDrawerPartyPreview();
@@ -1700,19 +1690,10 @@ function handleDragEnd(e) {
             delete openedSkills[currentPartyId][i];
         }
 
-        // シンプルな配列入れ替え
-        // アリーナモードでのP1<->P2間移動はSwap、それ以外はSplice
-        const isArenaSwap = isArenaMode && ((srcIdx < 5 && targetIdx >= 5) || (srcIdx >= 5 && targetIdx < 5));
-
-        if (isArenaSwap) {
-            const temp = party[srcIdx];
-            party[srcIdx] = party[targetIdx];
-            party[targetIdx] = temp;
-        } else {
-            const item = party[srcIdx];
-            party.splice(srcIdx, 1);
-            party.splice(targetIdx, 0, item);
-        }
+        // シンプルな配列入れ替え（Swap方式）
+        const temp = party[srcIdx];
+        party[srcIdx] = party[targetIdx];
+        party[targetIdx] = temp;
 
         renderPartySlots();
         renderDrawerPartyPreview(); // ドロワープレビューも更新
