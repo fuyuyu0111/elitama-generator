@@ -1,6 +1,5 @@
 const CACHE_NAME = 'alien-egg-cache-v2';
 const CORE_ASSETS = [
-  '/',
   '/static/manifest.json',
   '/static/main_icon.webp'
 ];
@@ -26,6 +25,14 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
     return;
   }
+
+  // HTMLドキュメント（ナビゲーションリクエスト）はキャッシュせず、常にネットワークから取得
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 静的アセットのみキャッシュ
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) {

@@ -437,9 +437,10 @@ function renderFormationHistory() {
     }
 
     formationHistory.forEach(id => {
-        const originalCard = document.querySelector(`.alien-grid .alien-card[data-id="${id}"]`);
-        if (originalCard) {
-            const clone = originalCard.cloneNode(true);
+        // allAliensDataからエイリアンを探す（フィルターの影響を受けない）
+        const alienData = allAliensData.find(a => String(a.id) === String(id));
+        if (alienData && alienData.element) {
+            const clone = alienData.element.cloneNode(true);
             container.appendChild(clone);
 
             // クリックイベントを設定（ドロワーと同じ処理：編成中なら解除、そうでなければ追加）
@@ -6089,8 +6090,17 @@ window.addDictionaryEntry = function (tabType = 'personality') {
             const data = await response.json();
 
             if (data.success) {
-                alert('辞書に追加しました。ページをリロードします。');
                 modal.remove();
+                // 他に変更がある場合は適用してからリロード
+                if (pendingChanges.length > 0) {
+                    try {
+                        await applyChangesInternal();
+                    } catch (applyError) {
+                        console.error('変更適用エラー:', applyError);
+                    }
+                }
+                // 管理モードを維持してリロード
+                sessionStorage.setItem('adminModeAfterReload', 'true');
                 location.reload();
             } else {
                 alert(`追加に失敗しました: ${data.error}`);
@@ -6428,36 +6438,16 @@ async function applyChangesInternal() {
                     `;
                 overlay.style.display = 'flex';
 
-                // オーバーレイをクリックで閉じないようにする（ボタンでのみ閉じる）
-                overlay.onclick = null;
-
                 document.getElementById('apply-changes-continue').addEventListener('click', () => {
-                    overlay.style.display = 'none';
-                    pendingChanges = [];
-                    updateAdminUI();
-                    // 管理モードを維持してリロード（ボタンを押した時点でリロード）
                     sessionStorage.setItem('adminModeAfterReload', 'true');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 100);
+                    location.reload();
                 }, { once: true });
 
                 document.getElementById('apply-changes-finish').addEventListener('click', () => {
-                    overlay.style.display = 'none';
-                    pendingChanges = []; // すべての変更をクリア（skillChanges + dictionaryUpdates）
-                    updateAdminUI();
-                    // 通常のリロード（管理モード終了、ボタンを押した時点でリロード）
-                    setTimeout(() => {
-                        location.reload();
-                    }, 100);
+                    location.reload();
                 }, { once: true });
             } else {
-                pendingChanges = [];
-                updateAdminUI();
-                // フォールバック時もリロード
-                setTimeout(() => {
-                    location.reload();
-                }, 100);
+                location.reload();
             }
         } else {
             // エラーメッセージをUI表示
