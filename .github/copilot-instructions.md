@@ -108,6 +108,13 @@ alien_egg/
 | `S_Skill_text` | TEXT | 特技テキスト（引用符必須） |
 | `hp`, `power`, `motivation`, `size`, `speed` | INTEGER | ステータス値 |
 
+### RLSポリシー (Supabaseセキュリティ設定)
+- **状態**: 有効化必須 (`ENABLE ROW LEVEL SECURITY`)
+- **ポリシー**: 公開情報のため、全ユーザーに読み取り権限を付与
+  ```sql
+  create policy "Enable read access for all users" on public.alien for select using (true);
+  ```
+
 ### correct_effect_names テーブル (効果辞書)
 
 | 列 | 型 | 説明 |
@@ -125,6 +132,14 @@ alien_egg/
 | `skill_text` | TEXT | 個性説明文 |
 | `effect_name` | TEXT FK | 効果名 |
 | `effect_type` | TEXT | BUFF, DEBUFF, STATUS |
+
+### RLSポリシー
+- **状態**: 有効化推奨
+- **ポリシー**: `alien`テーブル同様、公開読み取り許可を設定
+  ```sql
+  drop policy if exists "Allow full access for skill_text_verified_effects" on public.skill_text_verified_effects;
+  create policy "Enable read access for all users" on public.skill_text_verified_effects for select using (true);
+  ```
 
 -----
 
