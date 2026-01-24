@@ -2151,6 +2151,10 @@ function updateAlienGrid() {
         const normalFiltersMatch = Object.entries(activeFilters).every(([key, valueSet]) => {
             if (!valueSet || valueSet.size === 0) return true;
             if (key === 'types') {
+                // '0'が選択されている場合、タイプを持たないエイリアン（空配列）もマッチさせる
+                if (valueSet.has('0') && alien.types.length === 0) {
+                    return true;
+                }
                 return alien.types.some(type => valueSet.has(type));
             }
             // effectsは別途チェック
@@ -2329,7 +2333,7 @@ function createFilterButtons() {
         attack_area: { containerId: 'filter-section-attack_area', label: '攻撃はんい', prefix: 'c', count: 2 },
         attack_range: { containerId: 'filter-section-attack_range', label: '攻撃きょり', prefix: 'd', count: 3 },
         role: { containerId: 'filter-section-role', label: 'ロール', prefix: 'f', count: 4 },
-        types: { containerId: 'filter-section-types', label: 'タイプ', prefix: 'e', values: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'AA', 'AB', 'AC', 'AD', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM', 'AN', 'AO', 'AP', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AV', 'AW'] }
+        types: { containerId: 'filter-section-types', label: 'タイプ', prefix: 'e', values: ['0', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'AA', 'AB', 'AC', 'AD', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM', 'AN', 'AO', 'AP', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AV', 'AW'] }
     };
 
     for (const [key, config] of Object.entries(filters)) {
